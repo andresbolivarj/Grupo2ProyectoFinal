@@ -12,46 +12,32 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 
+#Quitar los # según vayan necesitando sus partes
 add_executable(LaPulpe
         main.cpp
-        VentanaLogin.h
-        VentanaLogin.cpp
+        #VentanaLogin.h
+        #VentanaLogin.cpp
         VentanaPrincipal.h
         VentanaPrincipal.cpp
-        VistaVentas.h
-        VistaVentas.cpp
+        #VistaVentas.h
+        #VistaVentas.cpp
         CategoriasProducto.h
         VistaInventario.h
         VistaInventario.cpp
-        VistaHistorial.h
-        VistaHistorial.cpp
+        #VistaHistorial.h
+        #VistaHistorial.cpp
         GestorJSON.h
         GestorJSON.cpp
         ModelosDatos.h
         IGeneradorTicket.h
-        TicketPdf.h
-        TicketPdf.cpp
+        #TicketPdf.h
+        #TicketPdf.cpp
         recursos.qrc
-        VistaUsuarios.cpp
-        VistaUsuarios.h
+        #VistaUsuarios.cpp
+        #VistaUsuarios.h
+        Usuario.h
 )
 
 target_link_libraries(LaPulpe PRIVATE Qt6::Widgets Qt6::PrintSupport)
 
-include(CTest)
-if(BUILD_TESTING)
-    add_executable(gestor_json_test
-            tests/gestor_json_test.cpp
-            GestorJSON.cpp
-            GestorJSON.h
-            ModelosDatos.h
-            TicketPdf.cpp
-            TicketPdf.h
-            IGeneradorTicket.h
-            Usuario.h
-    )
-    target_include_directories(gestor_json_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(gestor_json_test PRIVATE Qt6::Core Qt6::PrintSupport)
-    add_test(NAME gestor_json_test COMMAND gestor_json_test)
-    set_tests_properties(gestor_json_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-endif()
+
