@@ -1,8 +1,9 @@
 #include "VentanaPrincipal.h"
-#include "VistaVentas.h"
 #include "VistaInventario.h"
-#include "VistaHistorial.h"
-#include "VistaUsuarios.h"
+//#include "VistaVentas.h"
+//#include "VistaHistorial.h"
+//#include "VistaUsuarios.h"
+#include <QLabel>//se incluyó
 
 VentanaPrincipal::VentanaPrincipal(std::shared_ptr<Usuario> usuario, QWidget* parent)
     : QMainWindow(parent), usuarioActual(usuario) {
@@ -96,16 +97,27 @@ void VentanaPrincipal::configurarInterfaz() {
 
     panelCentral = new QStackedWidget(this);
     panelCentral->setStyleSheet("background: transparent;");
-
-    VistaVentas* vistaVentas = new VistaVentas(usuarioActual->getNombreUsuario(), this);
+    //VistaVentas* vistaVentas = new VistaVentas(usuarioActual->getNombreUsuario(), this);
     VistaInventario* vistaInventario = new VistaInventario(this);
-    VistaHistorial* vistaHistorial = new VistaHistorial(this);
-    VistaUsuarios* vistaUsuarios = new VistaUsuarios(this);
+    //VistaHistorial* vistaHistorial = new VistaHistorial(this);
+    //VistaUsuarios* vistaUsuarios = new VistaUsuarios(this);
 
-    panelCentral->addWidget(vistaVentas);
+    // Muestra las ventanas como pendientes
+    auto crearVistaPendiente = [this](const QString& modulo) {
+        auto* etiqueta = new QLabel(QString("El módulo «%1» no está disponible en esta versión.").arg(modulo), this);
+        etiqueta->setAlignment(Qt::AlignCenter);
+        etiqueta->setStyleSheet("font-size: 16px; color: #6b7280; background: white; border-radius: 12px;");
+        return etiqueta;
+    };
+    panelCentral->addWidget(crearVistaPendiente("Ventas"));
+    //panelCentral->addWidget(vistaVentas);
     panelCentral->addWidget(vistaInventario);
-    panelCentral->addWidget(vistaHistorial);
-    panelCentral->addWidget(vistaUsuarios);
+    panelCentral->addWidget(crearVistaPendiente("Historial"));
+    //panelCentral->addWidget(vistaHistorial);
+    panelCentral->addWidget(crearVistaPendiente("Usuarios"));
+    //panelCentral->addWidget(vistaUsuarios);
+
+    //hasta aquí vista pendiente
 
     layoutDerecha->addWidget(panelCentral);
     layoutRaiz->addWidget(areaDerecha);
@@ -140,7 +152,7 @@ void VentanaPrincipal::configurarInterfaz() {
 
     connect(btnHistorial, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(2);
-        vistaHistorial->actualizar();
+        //vistaHistorial->actualizar();
         resetEstiloBotones();
         btnHistorial->setStyleSheet(
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
@@ -150,7 +162,7 @@ void VentanaPrincipal::configurarInterfaz() {
 
     connect(btnUsuarios, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(3);
-        vistaUsuarios->actualizar();
+        //vistaUsuarios->actualizar();
         resetEstiloBotones();
         btnUsuarios->setStyleSheet(
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
