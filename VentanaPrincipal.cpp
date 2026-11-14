@@ -1,6 +1,9 @@
 #include "VentanaPrincipal.h"
+#include "VistaInventario.h"
 #include "VistaVentas.h"
+//#include "VistaHistorial.h"
 #include "VistaUsuarios.h"
+#include <QLabel>//se incluyó
 
 VentanaPrincipal::VentanaPrincipal(std::shared_ptr<Usuario> usuario, QWidget* parent)
     : QMainWindow(parent), usuarioActual(usuario) {
@@ -96,11 +99,23 @@ void VentanaPrincipal::configurarInterfaz() {
     panelCentral->setStyleSheet("background: transparent;");
     VistaVentas* vistaVentas = new VistaVentas(usuarioActual->getNombreUsuario(), this);
     VistaInventario* vistaInventario = new VistaInventario(this);
+    //VistaHistorial* vistaHistorial = new VistaHistorial(this);
     VistaUsuarios* vistaUsuarios = new VistaUsuarios(this);
 
+    // Muestra las ventanas como pendientes
+    auto crearVistaPendiente = [this](const QString& modulo) {
+        auto* etiqueta = new QLabel(QString("El módulo «%1» no está disponible en esta versión.").arg(modulo), this);
+        etiqueta->setAlignment(Qt::AlignCenter);
+        etiqueta->setStyleSheet("font-size: 16px; color: #6b7280; background: white; border-radius: 12px;");
+        return etiqueta;
+    };
     panelCentral->addWidget(vistaVentas);
     panelCentral->addWidget(vistaInventario);
+    panelCentral->addWidget(crearVistaPendiente("Historial"));
+    //panelCentral->addWidget(vistaHistorial);
     panelCentral->addWidget(vistaUsuarios);
+
+
 
     layoutDerecha->addWidget(panelCentral);
     layoutRaiz->addWidget(areaDerecha);
@@ -135,6 +150,7 @@ void VentanaPrincipal::configurarInterfaz() {
 
     connect(btnHistorial, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(2);
+        //vistaHistorial->actualizar();
         resetEstiloBotones();
         btnHistorial->setStyleSheet(
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
@@ -144,6 +160,7 @@ void VentanaPrincipal::configurarInterfaz() {
 
     connect(btnUsuarios, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(3);
+        //vistaUsuarios->actualizar();
         resetEstiloBotones();
         btnUsuarios->setStyleSheet(
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "

@@ -23,14 +23,20 @@ add_executable(LaPulpe
         CategoriasProducto.h
         VistaInventario.h
         VistaInventario.cpp
+        #VistaHistorial.h
+        #VistHistorial.cpp
         GestorJSON.h
         GestorJSON.cpp
         ModelosDatos.h
         IGeneradorTicket.h
+        #TicketPdf.h
+        #TicketPdf.cpp
         recursos.qrc
+        Usuario.h
         VistaUsuarios.cpp
         VistaUsuarios.h
+        VistaVentas.cpp
+        VistaVentas.h
 )
 
 target_link_libraries(LaPulpe PRIVATE Qt6::Widgets Qt6::PrintSupport)
-
