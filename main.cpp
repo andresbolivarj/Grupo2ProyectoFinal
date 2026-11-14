@@ -1,6 +1,5 @@
 #include <QApplication>
 #include "VentanaLogin.h"
-#include "VentanaPrincipal.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
@@ -15,6 +14,5 @@ int main(int argc, char *argv[]) {
 
         return app.exec();
     }
-
-    return 0;
+   return 0;
 }
