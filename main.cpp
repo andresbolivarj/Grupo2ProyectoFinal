@@ -1,28 +1,21 @@
 #include <QApplication>
-//#include "VentanaLogin.h"
 #include "VentanaPrincipal.h"
+#include "VentanaLogin.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     app.setOrganizationName("UNA");
     app.setApplicationName("LaPulpe");
 
-    //VentanaLogin login;
-    //if (login.exec() == QDialog::Accepted) {
-       //auto usuario = login.getUsuarioAutenticado();
-        //VentanaPrincipal ventanaPrincipal(usuario);
-        //ventanaPrincipal.show();
+    VentanaLogin login;
+    if (login.exec() == QDialog::Accepted) {
+        auto usuario = login.getUsuarioAutenticado();
+        VentanaPrincipal ventanaPrincipal(usuario);
+        ventanaPrincipal.show();
 
-        //return app.exec();
-   //}
+        return app.exec();
+    }
+    return 0;
 
-    //return 0;
-    
- //añadido
-    // Se inicia como administrador local para mantener disponible el inventario.
-    auto usuario = std::make_shared<Administrador>("admin", "");
-    VentanaPrincipal ventanaPrincipal(usuario);
-    ventanaPrincipal.show();
-    return app.exec();
-    //hasta aquí
+
 }

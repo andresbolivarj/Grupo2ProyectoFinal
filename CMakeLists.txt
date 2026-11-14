@@ -15,8 +15,8 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 #Quitar los # según vayan necesitando sus partes
 add_executable(LaPulpe
         main.cpp
-        #VentanaLogin.h
-        #VentanaLogin.cpp
+        VentanaLogin.h
+        VentanaLogin.cpp
         VentanaPrincipal.h
         VentanaPrincipal.cpp
         #VistaVentas.h
@@ -25,7 +25,7 @@ add_executable(LaPulpe
         VistaInventario.h
         VistaInventario.cpp
         #VistaHistorial.h
-        #VistaHistorial.cpp
+        #VistHistorial.cpp
         GestorJSON.h
         GestorJSON.cpp
         ModelosDatos.h
@@ -33,9 +33,9 @@ add_executable(LaPulpe
         #TicketPdf.h
         #TicketPdf.cpp
         recursos.qrc
-        #VistaUsuarios.cpp
-        #VistaUsuarios.h
         Usuario.h
+        VistaUsuarios.cpp
+        VistaUsuarios.h
 )
 
 target_link_libraries(LaPulpe PRIVATE Qt6::Widgets Qt6::PrintSupport)

@@ -2,7 +2,7 @@
 #include "VistaInventario.h"
 //#include "VistaVentas.h"
 //#include "VistaHistorial.h"
-//#include "VistaUsuarios.h"
+#include "VistaUsuarios.h"
 #include <QLabel>//se incluyó
 
 VentanaPrincipal::VentanaPrincipal(std::shared_ptr<Usuario> usuario, QWidget* parent)
@@ -100,7 +100,7 @@ void VentanaPrincipal::configurarInterfaz() {
     //VistaVentas* vistaVentas = new VistaVentas(usuarioActual->getNombreUsuario(), this);
     VistaInventario* vistaInventario = new VistaInventario(this);
     //VistaHistorial* vistaHistorial = new VistaHistorial(this);
-    //VistaUsuarios* vistaUsuarios = new VistaUsuarios(this);
+    VistaUsuarios* vistaUsuarios = new VistaUsuarios(this);
 
     // Muestra las ventanas como pendientes
     auto crearVistaPendiente = [this](const QString& modulo) {
@@ -108,14 +108,14 @@ void VentanaPrincipal::configurarInterfaz() {
         etiqueta->setAlignment(Qt::AlignCenter);
         etiqueta->setStyleSheet("font-size: 16px; color: #6b7280; background: white; border-radius: 12px;");
         return etiqueta;
-    };
+        };
     panelCentral->addWidget(crearVistaPendiente("Ventas"));
     //panelCentral->addWidget(vistaVentas);
     panelCentral->addWidget(vistaInventario);
     panelCentral->addWidget(crearVistaPendiente("Historial"));
     //panelCentral->addWidget(vistaHistorial);
-    panelCentral->addWidget(crearVistaPendiente("Usuarios"));
-    //panelCentral->addWidget(vistaUsuarios);
+    //panelCentral->addWidget(crearVistaPendiente("Usuarios"));
+    panelCentral->addWidget(vistaUsuarios);
 
     //hasta aquí vista pendiente
 
@@ -129,7 +129,7 @@ void VentanaPrincipal::configurarInterfaz() {
         btnInventario->setStyleSheet(crearBotonMenu("Inventario")->styleSheet());
         btnHistorial->setStyleSheet(crearBotonMenu("Historial")->styleSheet());
         btnUsuarios->setStyleSheet(crearBotonMenu("Usuarios")->styleSheet());
-    };
+        };
 
     connect(btnVentas, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(0);
@@ -138,7 +138,7 @@ void VentanaPrincipal::configurarInterfaz() {
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
             "border: none; border-radius: 10px; padding: 12px; font-size: 13px; text-align: left; padding-left: 15px; }"
         );
-    });
+        });
 
     connect(btnInventario, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(1);
@@ -148,7 +148,7 @@ void VentanaPrincipal::configurarInterfaz() {
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
             "border: none; border-radius: 10px; padding: 12px; font-size: 13px; text-align: left; padding-left: 15px; }"
         );
-    });
+        });
 
     connect(btnHistorial, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(2);
@@ -158,7 +158,7 @@ void VentanaPrincipal::configurarInterfaz() {
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
             "border: none; border-radius: 10px; padding: 12px; font-size: 13px; text-align: left; padding-left: 15px; }"
         );
-    });
+        });
 
     connect(btnUsuarios, &QPushButton::clicked, [=]() {
         panelCentral->setCurrentIndex(3);
@@ -168,7 +168,7 @@ void VentanaPrincipal::configurarInterfaz() {
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
             "border: none; border-radius: 10px; padding: 12px; font-size: 13px; text-align: left; padding-left: 15px; }"
         );
-    });
+        });
 
     connect(btnCerrarSesion, &QPushButton::clicked, this, &QMainWindow::close);
 }
@@ -180,7 +180,8 @@ QPushButton* VentanaPrincipal::crearBotonMenu(const QString& texto, bool activo)
             "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
             "border: none; border-radius: 10px; padding: 12px; font-size: 13px; text-align: left; padding-left: 15px; }"
         );
-    } else {
+    }
+    else {
         btn->setStyleSheet(
             "QPushButton { background-color: transparent; color: #4b5563; font-weight: 500; "
             "border: none; border-radius: 10px; padding: 12px; font-size: 13px; text-align: left; padding-left: 15px; }"
