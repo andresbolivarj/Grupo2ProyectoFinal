@@ -12,15 +12,14 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 
-#Quitar los # según vayan necesitando sus partes
 add_executable(LaPulpe
         main.cpp
         VentanaLogin.h
         VentanaLogin.cpp
         VentanaPrincipal.h
         VentanaPrincipal.cpp
-        #VistaVentas.h
-        #VistaVentas.cpp
+        VistaVentas.h
+        VistaVentas.cpp
         CategoriasProducto.h
         VistaInventario.h
         VistaInventario.cpp
@@ -36,8 +35,8 @@ add_executable(LaPulpe
         Usuario.h
         VistaUsuarios.cpp
         VistaUsuarios.h
+        VistaVentas.cpp
+        VistaVentas.h
 )
 
 target_link_libraries(LaPulpe PRIVATE Qt6::Widgets Qt6::PrintSupport)
-
-

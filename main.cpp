@@ -2,7 +2,7 @@
 #include "VentanaPrincipal.h"
 #include "VentanaLogin.h"
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     app.setOrganizationName("UNA");
     app.setApplicationName("LaPulpe");
