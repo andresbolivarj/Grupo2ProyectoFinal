@@ -15,6 +15,14 @@ struct ProductoItem {
     int stock = 0;
 };
 
+struct RegistroAuditoriaProducto {
+    QString fechaHora;
+    QString accion;
+    QString nombreProducto;
+    QString detalleCambio;
+    QString usuarioResponsable;
+};
+
 struct ItemCarrito {
     ProductoItem producto;
     int cantidad = 0;

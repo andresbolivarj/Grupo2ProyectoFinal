@@ -52,8 +52,48 @@ bool guardarJsonAtomico(const QString& ruta, const QJsonDocument& documento) {
 }
 
 GestorJSON::GestorJSON(const QString& rutaProds, const QString& rutaVnts)
+    : GestorJSON(rutaProds, rutaVnts, QString()) {}
+
+GestorJSON::GestorJSON(const QString& rutaProds, const QString& rutaVnts, const QString& rutaAuditoria)
     : rutaProductos(rutaProds.isEmpty() ? rutaDatos("productos.json") : rutaProds),
-      rutaVentas(rutaVnts.isEmpty() ? rutaDatos("ventas.json") : rutaVnts) {}
+      rutaVentas(rutaVnts.isEmpty() ? rutaDatos("ventas.json") : rutaVnts),
+      rutaAuditoriaProductos(rutaAuditoria.isEmpty() ? rutaDatos("auditoria_productos.json") : rutaAuditoria) {}
+
+std::vector<RegistroAuditoriaProducto> GestorJSON::cargarAuditoriaProductos() {
+    std::vector<RegistroAuditoriaProducto> registros;
+    QFile archivo(rutaAuditoriaProductos);
+    if (!archivo.open(QIODevice::ReadOnly | QIODevice::Text)) return registros;
+
+    const QJsonDocument doc = QJsonDocument::fromJson(archivo.readAll());
+    if (!doc.isArray()) return registros;
+    for (const QJsonValue& valor : doc.array()) {
+        const QJsonObject obj = valor.toObject();
+        RegistroAuditoriaProducto registro;
+        registro.fechaHora = obj["fechaHora"].toString();
+        registro.accion = obj["accion"].toString();
+        registro.nombreProducto = obj["nombreProducto"].toString();
+        registro.detalleCambio = obj["detalleCambio"].toString();
+        registro.usuarioResponsable = obj["usuarioResponsable"].toString();
+        registros.push_back(registro);
+    }
+    return registros;
+}
+
+bool GestorJSON::registrarCambioProducto(const RegistroAuditoriaProducto& registro) {
+    auto registros = cargarAuditoriaProductos();
+    registros.push_back(registro);
+    QJsonArray array;
+    for (const auto& item : registros) {
+        QJsonObject obj;
+        obj["fechaHora"] = item.fechaHora;
+        obj["accion"] = item.accion;
+        obj["nombreProducto"] = item.nombreProducto;
+        obj["detalleCambio"] = item.detalleCambio;
+        obj["usuarioResponsable"] = item.usuarioResponsable;
+        array.append(obj);
+    }
+    return guardarJsonAtomico(rutaAuditoriaProductos, QJsonDocument(array));
+}
 
 std::vector<std::shared_ptr<Usuario>> GestorJSON::cargarUsuarios() {
     std::vector<std::shared_ptr<Usuario>> lista;

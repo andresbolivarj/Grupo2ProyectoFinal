@@ -14,9 +14,11 @@ class GestorJSON {
 private:
     QString rutaProductos;
     QString rutaVentas;
+    QString rutaAuditoriaProductos;
 
 public:
     explicit GestorJSON(const QString& rutaProds = QString(), const QString& rutaVnts = QString());
+    GestorJSON(const QString& rutaProds, const QString& rutaVnts, const QString& rutaAuditoria);
 
     // Productos
     std::vector<ProductoItem> cargarProductos();
@@ -27,6 +29,10 @@ public:
     bool guardarVentas(const std::vector<DatosVentaTicket>& ventas);
     bool registrarVenta(const DatosVentaTicket& venta);
     QString siguienteIdVenta();
+
+    // Auditoría de productos
+    std::vector<RegistroAuditoriaProducto> cargarAuditoriaProductos();
+    bool registrarCambioProducto(const RegistroAuditoriaProducto& registro);
 
     // Usuarios
     std::vector<std::shared_ptr<Usuario>> cargarUsuarios();

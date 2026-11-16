@@ -98,7 +98,7 @@ void VentanaPrincipal::configurarInterfaz() {
     panelCentral = new QStackedWidget(this);
     panelCentral->setStyleSheet("background: transparent;");
     VistaVentas* vistaVentas = new VistaVentas(usuarioActual->getNombreUsuario(), this);
-    VistaInventario* vistaInventario = new VistaInventario(this);
+    VistaInventario* vistaInventario = new VistaInventario(usuarioActual, this);
     VistaHistorial* vistaHistorial = new VistaHistorial(this);
     VistaUsuarios* vistaUsuarios = new VistaUsuarios(this);
 
