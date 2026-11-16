@@ -1,7 +1,17 @@
 #include "VistaInventario.h"
 #include <QShowEvent>
+#include <QDateTime>
+#include <QBrush>
+#include <QColor>
+#include <QStringList>
+#include <algorithm>
+#include <utility>
 
-VistaInventario::VistaInventario(QWidget* parent) : QWidget(parent) {
+VistaInventario::VistaInventario(QWidget* parent)
+    : VistaInventario(nullptr, parent) {}
+
+VistaInventario::VistaInventario(std::shared_ptr<Usuario> usuario, QWidget* parent)
+    : QWidget(parent), usuarioActual(std::move(usuario)) {
     configurarInterfaz();
     cargarDatos();
 }
@@ -16,7 +26,10 @@ void VistaInventario::actualizar() {
 }
 
 void VistaInventario::configurarInterfaz() {
-    QVBoxLayout* layoutPrincipal = new QVBoxLayout(this);
+    QVBoxLayout* layoutRaiz = new QVBoxLayout(this);
+    pestañas = new QTabWidget(this);
+    paginaInventario = new QWidget(pestañas);
+    QVBoxLayout* layoutPrincipal = new QVBoxLayout(paginaInventario);
     layoutPrincipal->setContentsMargins(20, 20, 20, 20);
     layoutPrincipal->setSpacing(15);
     this->setStyleSheet("background-color: #f8f9fa;");
@@ -93,7 +106,7 @@ void VistaInventario::configurarInterfaz() {
     layoutPrincipal->addLayout(layoutTop);
 
     // TABLA DE INVENTARIO
-    tablaProductos = new QTableWidget(this);
+    tablaProductos = new QTableWidget(paginaInventario);
     tablaProductos->setColumnCount(6);
     tablaProductos->setHorizontalHeaderLabels({"ID / Código", "Nombre", "Categoría", "Precio (₡)", "Stock", "Estado"});
     tablaProductos->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -108,6 +121,31 @@ void VistaInventario::configurarInterfaz() {
     );
 
     layoutPrincipal->addWidget(tablaProductos);
+    pestañas->addTab(paginaInventario, "Gestión de Inventario");
+
+    if (usuarioActual && usuarioActual->rol() == "Administrador") {
+        QWidget* paginaAuditoria = new QWidget(pestañas);
+        QVBoxLayout* layoutAuditoria = new QVBoxLayout(paginaAuditoria);
+        QHBoxLayout* barraAuditoria = new QHBoxLayout();
+        txtBuscarAuditoria = new QLineEdit(paginaAuditoria);
+        txtBuscarAuditoria->setPlaceholderText("Buscar en el historial...");
+        QPushButton* btnActualizarAuditoria = new QPushButton("Actualizar", paginaAuditoria);
+        barraAuditoria->addWidget(txtBuscarAuditoria);
+        barraAuditoria->addWidget(btnActualizarAuditoria);
+        tablaAuditoria = new QTableWidget(paginaAuditoria);
+        tablaAuditoria->setColumnCount(5);
+        tablaAuditoria->setHorizontalHeaderLabels({"Fecha y Hora", "Acción", "Producto", "Detalle del Cambio", "Realizado por"});
+        tablaAuditoria->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        tablaAuditoria->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        tablaAuditoria->setSelectionBehavior(QAbstractItemView::SelectRows);
+        tablaAuditoria->setSortingEnabled(false);
+        layoutAuditoria->addLayout(barraAuditoria);
+        layoutAuditoria->addWidget(tablaAuditoria);
+        pestañas->addTab(paginaAuditoria, "Historial de Cambios");
+        connect(btnActualizarAuditoria, &QPushButton::clicked, this, &VistaInventario::cargarAuditoria);
+        connect(txtBuscarAuditoria, &QLineEdit::textChanged, this, &VistaInventario::filtrarAuditoria);
+    }
+    layoutRaiz->addWidget(pestañas);
 }
 
 void VistaInventario::cargarDatos() {
@@ -138,6 +176,53 @@ void VistaInventario::cargarDatos() {
     }
 
     renderizarTabla();
+    cargarAuditoria();
+}
+
+void VistaInventario::cargarAuditoria() {
+    if (!tablaAuditoria) return;
+    GestorJSON gestor;
+    auto registros = gestor.cargarAuditoriaProductos();
+    std::stable_sort(registros.begin(), registros.end(), [](const auto& a, const auto& b) {
+        return QDateTime::fromString(a.fechaHora, "yyyy-MM-dd HH:mm:ss") >
+               QDateTime::fromString(b.fechaHora, "yyyy-MM-dd HH:mm:ss");
+    });
+    tablaAuditoria->setRowCount(0);
+    for (const auto& registro : registros) {
+        const int fila = tablaAuditoria->rowCount();
+        tablaAuditoria->insertRow(fila);
+        const QStringList valores{registro.fechaHora, registro.accion, registro.nombreProducto,
+                                  registro.detalleCambio, registro.usuarioResponsable};
+        for (int columna = 0; columna < valores.size(); ++columna)
+            tablaAuditoria->setItem(fila, columna, new QTableWidgetItem(valores[columna]));
+        const QString color = registro.accion == "AÑADIDO" ? "#047857" :
+                              registro.accion == "ELIMINADO" ? "#b91c1c" : "#1d4ed8";
+        tablaAuditoria->item(fila, 1)->setForeground(QBrush(QColor(color)));
+    }
+    filtrarAuditoria();
+}
+
+void VistaInventario::filtrarAuditoria() {
+    if (!tablaAuditoria || !txtBuscarAuditoria) return;
+    const QString filtro = txtBuscarAuditoria->text().trimmed();
+    for (int fila = 0; fila < tablaAuditoria->rowCount(); ++fila) {
+        bool coincide = filtro.isEmpty();
+        for (int col = 0; !coincide && col < tablaAuditoria->columnCount(); ++col)
+            coincide = tablaAuditoria->item(fila, col)->text().contains(filtro, Qt::CaseInsensitive);
+        tablaAuditoria->setRowHidden(fila, !coincide);
+    }
+}
+
+void VistaInventario::registrarAuditoria(const QString& accion, const ProductoItem& producto, const QString& detalle) {
+    if (!usuarioActual) return;
+    RegistroAuditoriaProducto registro;
+    registro.fechaHora = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    registro.accion = accion;
+    registro.nombreProducto = QString("%1 (%2)").arg(producto.nombre, producto.id);
+    registro.detalleCambio = detalle;
+    registro.usuarioResponsable = QString("%1 (%2)").arg(usuarioActual->getNombreUsuario(), usuarioActual->rol());
+    GestorJSON gestor;
+    if (gestor.registrarCambioProducto(registro)) cargarAuditoria();
 }
 
 void VistaInventario::renderizarTabla() {
@@ -313,9 +398,11 @@ void VistaInventario::abrirFormularioProducto(ProductoItem* prodExistente) {
 }
 
 void VistaInventario::guardarProductoEnJSON(const ProductoItem& prod, bool esEdicion) {
+    ProductoItem productoAnterior;
     if (esEdicion) {
         for (auto& p : listaProductos) {
             if (p.id == prod.id) {
+                productoAnterior = p;
                 p = prod;
                 break;
             }
@@ -337,6 +424,21 @@ void VistaInventario::guardarProductoEnJSON(const ProductoItem& prod, bool esEdi
 
     GestorJSON gestor;
     if (gestor.guardarProductos(listaProductos)) {
+        QString detalle;
+        if (esEdicion) {
+            QStringList cambios;
+            if (productoAnterior.precio != prod.precio)
+                cambios << QString("Precio: ₡%1 -> ₡%2").arg(productoAnterior.precio, 0, 'f', 2).arg(prod.precio, 0, 'f', 2);
+            if (productoAnterior.stock != prod.stock)
+                cambios << QString("Stock: %1 -> %2").arg(productoAnterior.stock).arg(prod.stock);
+            if (productoAnterior.nombre != prod.nombre) cambios << QString("Nombre: %1 -> %2").arg(productoAnterior.nombre, prod.nombre);
+            if (productoAnterior.descripcion != prod.descripcion) cambios << QString("Descripción actualizada");
+            if (productoAnterior.categoria != prod.categoria) cambios << QString("Categoría: %1 -> %2").arg(productoAnterior.categoria, prod.categoria);
+            detalle = cambios.isEmpty() ? "Producto guardado sin cambios en sus campos" : cambios.join(" | ");
+        } else {
+            detalle = "Nuevo producto registrado";
+        }
+        registrarAuditoria(esEdicion ? "MODIFICADO" : "AÑADIDO", prod, detalle);
         renderizarTabla();
 
         QMessageBox msgBox(this);
@@ -386,8 +488,13 @@ void VistaInventario::eliminarProductoSeleccionado() {
         }
 
         GestorJSON gestor;
-        gestor.guardarProductos(listaProductos);
-        renderizarTabla();
+        if (gestor.guardarProductos(listaProductos)) {
+            ProductoItem eliminado;
+            eliminado.id = idProd;
+            eliminado.nombre = nombreProd;
+            registrarAuditoria("ELIMINADO", eliminado, "Producto eliminado del inventario");
+            renderizarTabla();
+        }
     }
 }
 
