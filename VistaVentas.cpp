@@ -9,6 +9,8 @@
 #include <QButtonGroup>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <QDoubleValidator>
+#include <QLocale>
 #include <QSignalBlocker>
 #include <QStandardPaths>
 #include <algorithm>
@@ -217,33 +219,33 @@ void VistaVentas::configurarInterfaz() {
                                   QStringLiteral("Porcentaje (%)")});
     comboTipoDescuento->setStyleSheet(Estilos::estiloEntrada());
 
-    spinDescuento = new QDoubleSpinBox(panelDerecho);
-    spinDescuento->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    spinDescuento->setRange(0.0, 10000000.0);
-    spinDescuento->setDecimals(2);
-    spinDescuento->setStyleSheet(Estilos::estiloEntrada());
+    txtDescuento = new QLineEdit(panelDerecho);
+    txtDescuento->setAlignment(Qt::AlignRight);
+    txtDescuento->setText(QStringLiteral("0.00"));
+    txtDescuento->setPlaceholderText(QStringLiteral("0.00"));
+    auto* validadorDescuento = new QDoubleValidator(0.0, 10000000.0, 2, txtDescuento);
+    validadorDescuento->setNotation(QDoubleValidator::StandardNotation);
+    validadorDescuento->setLocale(QLocale::c());
+    txtDescuento->setValidator(validadorDescuento);
+    txtDescuento->setStyleSheet(Estilos::estiloEntrada());
 
     connect(comboTipoDescuento, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int index) {
-                QSignalBlocker bloqueo(spinDescuento);
+            this, [this, validadorDescuento](int index) {
+                QSignalBlocker bloqueo(txtDescuento);
                 if (index == CalculadoraVenta::DescuentoPorcentaje) {
-                    spinDescuento->setRange(0.0, 100.0);
-                    spinDescuento->setSuffix(QStringLiteral(" %"));
-                    spinDescuento->setPrefix(QString());
+                    validadorDescuento->setTop(100.0);
                 } else {
-                    spinDescuento->setRange(0.0, 10000000.0);
-                    spinDescuento->setPrefix(QStringLiteral("₡ "));
-                    spinDescuento->setSuffix(QString());
+                    validadorDescuento->setTop(10000000.0);
                 }
-                spinDescuento->setValue(0.0);
+                txtDescuento->setText(QStringLiteral("0.00"));
                 actualizarTotales();
             });
-    connect(spinDescuento, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+    connect(txtDescuento, &QLineEdit::textChanged,
             this, &VistaVentas::actualizarTotales);
 
     layoutDesc->addWidget(lblEtiquetaDesc);
     layoutDesc->addWidget(comboTipoDescuento, 1);
-    layoutDesc->addWidget(spinDescuento, 1);
+    layoutDesc->addWidget(txtDescuento, 1);
     layoutDerecho->addLayout(layoutDesc);
 
     QHBoxLayout* layoutTotal = new QHBoxLayout();
@@ -269,14 +271,19 @@ void VistaVentas::configurarInterfaz() {
     lblPagaCon->setStyleSheet(
         QStringLiteral("font-size: 12px; color: #374151; font-weight: bold; border: none;"));
 
-    spinMontoPaga = new QDoubleSpinBox(panelDerecho);
-    spinMontoPaga->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    spinMontoPaga->setRange(0.0, 10000000.0);
-    spinMontoPaga->setDecimals(2);
-    spinMontoPaga->setStyleSheet(Estilos::estiloEntrada());
+    txtMontoPaga = new QLineEdit(panelDerecho);
+    txtMontoPaga->setMinimumWidth(90);
+    txtMontoPaga->setAlignment(Qt::AlignRight);
+    txtMontoPaga->setText(QStringLiteral("0.00"));
+    txtMontoPaga->setPlaceholderText(QStringLiteral("0.00"));
+    auto* validadorMonto = new QDoubleValidator(0.0, 10000000.0, 2, txtMontoPaga);
+    validadorMonto->setNotation(QDoubleValidator::StandardNotation);
+    validadorMonto->setLocale(QLocale::c());
+    txtMontoPaga->setValidator(validadorMonto);
+    txtMontoPaga->setStyleSheet(Estilos::estiloEntrada());
 
     layoutMonto->addWidget(lblPagaCon);
-    layoutMonto->addWidget(spinMontoPaga, 1);
+    layoutMonto->addWidget(txtMontoPaga, 1);
     layoutDerecho->addLayout(layoutMonto);
 
     QHBoxLayout* layoutCambio = new QHBoxLayout();
@@ -291,7 +298,7 @@ void VistaVentas::configurarInterfaz() {
     layoutCambio->addWidget(lblCambio);
     layoutDerecho->addLayout(layoutCambio);
 
-    connect(spinMontoPaga, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+    connect(txtMontoPaga, &QLineEdit::textChanged,
             this, &VistaVentas::calcularCambioEfectivo);
 
     btnCheckout = new QPushButton(QStringLiteral("Procesar Venta"), panelDerecho);
@@ -591,12 +598,12 @@ void VistaVentas::vaciarCarrito() {
     if (confirmacion.clickedButton() == btnSi) {
         carrito.clear();
         {
-            QSignalBlocker bloqueoDescuento(spinDescuento);
-            spinDescuento->setValue(0.0);
+            QSignalBlocker bloqueoDescuento(txtDescuento);
+            txtDescuento->setText(QStringLiteral("0.00"));
         }
         {
-            QSignalBlocker bloqueoPago(spinMontoPaga);
-            spinMontoPaga->setValue(0.0);
+            QSignalBlocker bloqueoPago(txtMontoPaga);
+            txtMontoPaga->setText(QStringLiteral("0.00"));
         }
         renderizarCarrito();
         actualizarTotales();
@@ -608,7 +615,7 @@ void VistaVentas::actualizarTotales() {
 
     const int tipo = comboTipoDescuento ? comboTipoDescuento->currentIndex()
                                         : CalculadoraVenta::DescuentoMonto;
-    double valor = spinDescuento ? spinDescuento->value() : 0.0;
+    double valor = valorDescuento();
 
     double bruto = 0.0;
     for (const auto& item : carrito) {
@@ -618,8 +625,8 @@ void VistaVentas::actualizarTotales() {
     // El descuento por monto no puede superar el subtotal: se ajusta en vivo
     // para evitar estados inválidos mientras el cajero escribe.
     if (tipo == CalculadoraVenta::DescuentoMonto && valor > bruto) {
-        QSignalBlocker bloqueo(spinDescuento);
-        spinDescuento->setValue(bruto);
+        QSignalBlocker bloqueo(txtDescuento);
+        txtDescuento->setText(QString::number(bruto, 'f', 2));
         valor = bruto;
     }
 
@@ -659,9 +666,9 @@ void VistaVentas::actualizarTotales() {
 }
 
 void VistaVentas::calcularCambioEfectivo() {
-    if (!lblCambio || !spinMontoPaga) return;
+    if (!lblCambio || !txtMontoPaga) return;
 
-    const double pagaCon = spinMontoPaga->value();
+    const double pagaCon = montoPagado();
     const double cambio = CalculadoraVenta::calcularCambio(pagaCon, totalActual);
 
     if (totalActual <= 0.0) {
@@ -680,6 +687,18 @@ void VistaVentas::calcularCambioEfectivo() {
     }
 }
 
+double VistaVentas::valorDescuento() const {
+    bool valido = false;
+    const double valor = txtDescuento ? txtDescuento->text().toDouble(&valido) : 0.0;
+    return valido ? valor : 0.0;
+}
+
+double VistaVentas::montoPagado() const {
+    bool valido = false;
+    const double monto = txtMontoPaga ? txtMontoPaga->text().toDouble(&valido) : 0.0;
+    return valido ? monto : 0.0;
+}
+
 void VistaVentas::procesarCheckout() {
     if (carrito.empty()) {
         Estilos::mostrarAdvertencia(
@@ -693,14 +712,15 @@ void VistaVentas::procesarCheckout() {
             QStringLiteral("El total de la venta debe ser mayor que cero."));
         return;
     }
-    if (spinMontoPaga->value() + 0.001 < totalActual) {
+    const double pagaCon = montoPagado();
+    if (pagaCon + 0.001 < totalActual) {
         Estilos::mostrarAdvertencia(
             this, QStringLiteral("Pago insuficiente"),
             QStringLiteral("El monto pagado es menor que el total.\n"
                            "Total: ₡ %1\nPaga con: ₡ %2\nFalta: ₡ %3")
                 .arg(totalActual, 0, 'f', 2)
-                .arg(spinMontoPaga->value(), 0, 'f', 2)
-                .arg(totalActual - spinMontoPaga->value(), 0, 'f', 2));
+                .arg(pagaCon, 0, 'f', 2)
+                .arg(totalActual - pagaCon, 0, 'f', 2));
         return;
     }
 
@@ -709,7 +729,7 @@ void VistaVentas::procesarCheckout() {
     DatosVentaTicket venta;
     const bool registrada = servicio.registrar(
         carrito, nombreUsuario, comboTipoDescuento->currentIndex(),
-        spinDescuento->value(), spinMontoPaga->value(), &venta, &error);
+        valorDescuento(), pagaCon, &venta, &error);
 
     if (!registrada) {
         Estilos::mostrarError(this, QStringLiteral("No se pudo procesar la venta"),
@@ -724,12 +744,12 @@ void VistaVentas::procesarCheckout() {
     mostrarYGuardarTicket(venta);
     carrito.clear();
     {
-        QSignalBlocker bloqueoDescuento(spinDescuento);
-        spinDescuento->setValue(0.0);
+        QSignalBlocker bloqueoDescuento(txtDescuento);
+        txtDescuento->setText(QStringLiteral("0.00"));
     }
     {
-        QSignalBlocker bloqueoPago(spinMontoPaga);
-        spinMontoPaga->setValue(0.0);
+        QSignalBlocker bloqueoPago(txtMontoPaga);
+        txtMontoPaga->setText(QStringLiteral("0.00"));
     }
     actualizar();
     emit ventaRegistrada(venta.getIdVenta());

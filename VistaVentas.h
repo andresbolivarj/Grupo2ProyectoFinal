@@ -3,7 +3,6 @@
 
 #include <QComboBox>
 #include <QDialog>
-#include <QDoubleSpinBox>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -34,11 +33,11 @@ private:
     QLabel* lblDescuento = nullptr;
     QLabel* lblIVA = nullptr;
     QComboBox* comboTipoDescuento = nullptr;
-    QDoubleSpinBox* spinDescuento = nullptr;
+    QLineEdit* txtDescuento = nullptr;
     QLabel* lblTotal = nullptr;
     QLabel* lblResumenItems = nullptr;
 
-    QDoubleSpinBox* spinMontoPaga = nullptr;
+    QLineEdit* txtMontoPaga = nullptr;
     QLabel* lblCambio = nullptr;
     QPushButton* btnCheckout = nullptr;
     QPushButton* btnVaciarCarrito = nullptr;
@@ -84,6 +83,8 @@ private:
     void vaciarCarrito();
     void actualizarTotales();
     void calcularCambioEfectivo();
+    double valorDescuento() const;
+    double montoPagado() const;
     void filtrarProductos();
     void procesarCheckout();
 
