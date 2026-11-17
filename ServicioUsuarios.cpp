@@ -190,6 +190,15 @@ bool ServicioUsuarios::actualizar(const QString& usuario, const QString& claveNu
             return false;
         }
 
+        if (mismoUsuario(actual->getNombreUsuario(), solicitante->getNombreUsuario())
+            && actual->rol() == QStringLiteral("Administrador")
+            && rol == QStringLiteral("Cajero")) {
+            establecerError(error,
+                            QStringLiteral("No puede cambiar su propio rol de Administrador "
+                                           "a Cajero."));
+            return false;
+        }
+
         const bool eraAdminActivo = actual->isActivo()
                                     && actual->rol() == QStringLiteral("Administrador");
         const bool seguiraAdminActivo = activo && rol == QStringLiteral("Administrador");

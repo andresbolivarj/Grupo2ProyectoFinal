@@ -8,6 +8,10 @@ cmake-build-*/
 .vs/
 *.vcxproj.user
 
+# Salida de compilación de CMake y presets personales
+out/
+CMakeUserPresets.json
+
 # ==========================================
 # Windows (Sistema Operativo y Compiladores)
 # ==========================================
