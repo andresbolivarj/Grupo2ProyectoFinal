@@ -1,52 +1,59 @@
 #ifndef VISTAINVENTARIO_H
 #define VISTAINVENTARIO_H
 
-#include <QWidget>
-#include <QTabWidget>
-#include <QTableWidget>
-#include <QLineEdit>
-#include <QPushButton>
 #include <QComboBox>
-#include <QLabel>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QMessageBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QHeaderView>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QSpinBox>
-#include <vector>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QVBoxLayout>
+#include <QWidget>
 #include <memory>
+#include <vector>
 #include "ModelosDatos.h"
-#include "GestorJSON.h"
 #include "Usuario.h"
 
 class VistaInventario : public QWidget {
     Q_OBJECT
 
 private:
-    QLineEdit* txtBuscar;
-    QComboBox* comboCategoriaFiltro;
-    QTableWidget* tablaProductos;
+    QLineEdit* txtBuscar = nullptr;
+    QComboBox* comboCategoriaFiltro = nullptr;
+    QTableWidget* tablaProductos = nullptr;
     QTableWidget* tablaAuditoria = nullptr;
     QLineEdit* txtBuscarAuditoria = nullptr;
-    QTabWidget* pestañas;
-    QWidget* paginaInventario;
+    QTabWidget* pestanas = nullptr;
+    QWidget* paginaInventario = nullptr;
     std::shared_ptr<Usuario> usuarioActual;
 
-    QPushButton* btnAgregar;
-    QPushButton* btnEditar;
-    QPushButton* btnEliminar;
+    QPushButton* btnAgregar = nullptr;
+    QPushButton* btnEditar = nullptr;
+    QPushButton* btnDesactivar = nullptr;
+    QPushButton* btnReactivar = nullptr;
 
     std::vector<ProductoItem> listaProductos;
+
+    bool esAdministrador() const;
 
 public:
     explicit VistaInventario(QWidget* parent = nullptr);
     VistaInventario(std::shared_ptr<Usuario> usuario, QWidget* parent);
-    void actualizar(); // Permite recargar la tabla externamente
+    void actualizar();
+
+signals:
+    // Se emite después de cualquier alta, edición, desactivación o
+    // reactivación para que las demás vistas recarguen desde el JSON.
+    void inventarioModificado();
 
 protected:
-    void showEvent(QShowEvent* event) override; // Se ejecuta automáticamente al abrir la vista
+    void showEvent(QShowEvent* event) override;
 
 private:
     void configurarInterfaz();
@@ -54,12 +61,11 @@ private:
     void renderizarTabla();
 
     void abrirFormularioProducto(ProductoItem* productoExistente = nullptr);
-    void guardarProductoEnJSON(const ProductoItem& prod, bool esEdicion);
-    void eliminarProductoSeleccionado();
+    void desactivarProductoSeleccionado();
+    void reactivarProductoSeleccionado();
     void filtrarTabla();
     void cargarAuditoria();
     void filtrarAuditoria();
-    void registrarAuditoria(const QString& accion, const ProductoItem& producto, const QString& detalle);
 };
 
 #endif // VISTAINVENTARIO_H

@@ -1,373 +1,378 @@
 #include "VistaUsuarios.h"
-#include <QShowEvent>
 
-// Constructor de la vista inicia la interfaz gráfica y carga los datos almacenados
-VistaUsuarios::VistaUsuarios(QWidget* parent) : QWidget(parent) {
+#include "Estilos.h"
+#include "ServicioUsuarios.h"
+
+#include <QBrush>
+#include <QCheckBox>
+#include <QColor>
+#include <QShowEvent>
+#include <utility>
+
+VistaUsuarios::VistaUsuarios(QWidget* parent)
+    : VistaUsuarios(nullptr, parent) {}
+
+VistaUsuarios::VistaUsuarios(std::shared_ptr<Usuario> usuario, QWidget* parent)
+    : QWidget(parent), usuarioActual(std::move(usuario)) {
     configurarInterfaz();
     cargarDatos();
 }
 
-// Evento que se dispara automáticamente cada vez que la ventana pasa a ser visible
+bool VistaUsuarios::esAdministrador() const {
+    return usuarioActual && usuarioActual->isActivo()
+           && usuarioActual->rol() == QStringLiteral("Administrador");
+}
+
 void VistaUsuarios::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     actualizar();
 }
 
-// Recarga los datos para mantener la vista siempre al día
 void VistaUsuarios::actualizar() {
     cargarDatos();
 }
 
-// Construye y aplica los estilos visuales a todos los componentes de la interfaz
 void VistaUsuarios::configurarInterfaz() {
-    // Layout principal vertical con márgenes y fondo gris claro
     QVBoxLayout* layoutPrincipal = new QVBoxLayout(this);
-    layoutPrincipal->setContentsMargins(20, 20, 20, 20);
-    layoutPrincipal->setSpacing(15);
-    this->setStyleSheet("background-color: #f8f9fa;");
+    layoutPrincipal->setContentsMargins(16, 16, 16, 16);
+    layoutPrincipal->setSpacing(12);
+    setStyleSheet(QStringLiteral("background-color: #f8f9fa;"));
 
-    //Barra superior                                                                                                                                                                                                                                 (Buscador y Botones)                                                                                                                                                                                                                                (Buscador y Botones)
     QHBoxLayout* layoutTop = new QHBoxLayout();
-    layoutTop->setSpacing(10);
+    layoutTop->setSpacing(8);
 
-    // Campo de texto para la búsqueda por nombre de usuario
     txtBuscar = new QLineEdit(this);
-    txtBuscar->setPlaceholderText("Buscar por Nombre de Usuario...");
-    txtBuscar->setStyleSheet(
-        "QLineEdit { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; "
-        "padding: 8px 12px; font-size: 13px; color: #111827; }"
-        "QLineEdit:focus { border: 1px solid #10b981; }"
-    );
-    // Filtra la tabla automáticamente mientras el usuario escribe
+    txtBuscar->setPlaceholderText(QStringLiteral("Buscar por nombre de usuario..."));
+    txtBuscar->setStyleSheet(Estilos::estiloEntrada());
     connect(txtBuscar, &QLineEdit::textChanged, this, &VistaUsuarios::filtrarTabla);
 
-    // Botón verde para registrar un nuevo usuario
-    btnAgregar = new QPushButton("+ Nuevo Usuario", this);
-    btnAgregar->setStyleSheet(
-        "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #059669; }"
-    );
-    connect(btnAgregar, &QPushButton::clicked, [this]() { abrirFormularioUsuario(nullptr); });
+    btnAgregar = new QPushButton(QStringLiteral("+ Nuevo Usuario"), this);
+    btnAgregar->setCursor(Qt::PointingHandCursor);
+    btnAgregar->setStyleSheet(Estilos::estiloBotonPrincipal());
+    connect(btnAgregar, &QPushButton::clicked, this,
+            [this]() { abrirFormularioUsuario(nullptr); });
 
-    // Botón azul para editar el usuario seleccionado en la tabla
-    btnEditar = new QPushButton(" Editar", this);
-    btnEditar->setStyleSheet(
-        "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #2563eb; }"
-    );
-    connect(btnEditar, &QPushButton::clicked, [this]() {
-        int fila = tablaUsuarios->currentRow();
-        // Valida que haya una fila seleccionada antes de intentar editar
+    btnEditar = new QPushButton(QStringLiteral("Editar"), this);
+    btnEditar->setCursor(Qt::PointingHandCursor);
+    btnEditar->setStyleSheet(Estilos::estiloBotonSecundario());
+    connect(btnEditar, &QPushButton::clicked, this, [this]() {
+        const int fila = tablaUsuarios->currentRow();
         if (fila < 0) {
-            QMessageBox msgBox(this);
-            msgBox.setWindowTitle("Selección requerida");
-            msgBox.setText("Seleccione un usuario para editar.");
-            msgBox.setIcon(QMessageBox::Warning);
-            msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-            msgBox.exec();
+            Estilos::mostrarAdvertencia(
+                this, QStringLiteral("Selección requerida"),
+                QStringLiteral("Seleccione un usuario para editar."));
             return;
         }
-        // Obtiene el nombre del usuario seleccionado y abre el formulario en modo edición
-        QString username = tablaUsuarios->item(fila, 0)->text();
-        for (auto& u : listaUsuarios) {
-            if (u->getNombreUsuario() == username) {
-                abrirFormularioUsuario(u);
-                break;
+        const QString nombre = tablaUsuarios->item(fila, 0)->text();
+        for (const auto& usuario : listaUsuarios) {
+            if (usuario->getNombreUsuario() == nombre) {
+                abrirFormularioUsuario(usuario);
+                return;
             }
         }
-        });
+    });
 
-    // Botón rojo para eliminar el usuario seleccionado
-    btnEliminar = new QPushButton(" Eliminar", this);
-    btnEliminar->setStyleSheet(
-        "QPushButton { background-color: #ef4444; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #dc2626; }"
-    );
-    connect(btnEliminar, &QPushButton::clicked, this, &VistaUsuarios::eliminarUsuarioSeleccionado);
+    btnDesactivar = new QPushButton(QStringLiteral("Desactivar"), this);
+    btnDesactivar->setCursor(Qt::PointingHandCursor);
+    btnDesactivar->setStyleSheet(Estilos::estiloBotonPeligro());
+    connect(btnDesactivar, &QPushButton::clicked, this,
+            &VistaUsuarios::desactivarUsuarioSeleccionado);
 
-    // Agrega los controles al layout horizontal con proporciones estiradas
+    btnReactivar = new QPushButton(QStringLiteral("Reactivar"), this);
+    btnReactivar->setCursor(Qt::PointingHandCursor);
+    btnReactivar->setStyleSheet(Estilos::estiloBotonPrincipal());
+    connect(btnReactivar, &QPushButton::clicked, this,
+            &VistaUsuarios::reactivarUsuarioSeleccionado);
+
     layoutTop->addWidget(txtBuscar, 4);
     layoutTop->addWidget(btnAgregar, 2);
     layoutTop->addWidget(btnEditar, 1);
-    layoutTop->addWidget(btnEliminar, 1);
+    layoutTop->addWidget(btnDesactivar, 1);
+    layoutTop->addWidget(btnReactivar, 1);
+
+    if (!esAdministrador()) {
+        btnAgregar->setVisible(false);
+        btnEditar->setVisible(false);
+        btnDesactivar->setVisible(false);
+        btnReactivar->setVisible(false);
+        QLabel* lblConsulta = new QLabel(
+            QStringLiteral("Solo un administrador puede gestionar usuarios."), this);
+        lblConsulta->setStyleSheet(
+            QStringLiteral("color: #6b7280; font-size: 12px; font-style: italic;"));
+        layoutPrincipal->addWidget(lblConsulta);
+    }
 
     layoutPrincipal->addLayout(layoutTop);
 
-    // --- TABLA DE USUARIOS ---
     tablaUsuarios = new QTableWidget(this);
     tablaUsuarios->setColumnCount(3);
-    tablaUsuarios->setHorizontalHeaderLabels({ "Usuario", "Rol de Acceso", "Estado" });
+    tablaUsuarios->setHorizontalHeaderLabels({
+        QStringLiteral("Usuario"), QStringLiteral("Rol de Acceso"), QStringLiteral("Estado")
+    });
     tablaUsuarios->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     tablaUsuarios->verticalHeader()->setVisible(false);
     tablaUsuarios->setSelectionBehavior(QAbstractItemView::SelectRows);
     tablaUsuarios->setSelectionMode(QAbstractItemView::SingleSelection);
     tablaUsuarios->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tablaUsuarios->setStyleSheet(
-        "QTableWidget { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; gridline-color: #f3f4f6; }"
-        "QHeaderView::section { background-color: #f9fafb; color: #374151; font-weight: bold; border: none; padding: 10px; font-size: 12px; }"
-        "QTableWidget::item { padding: 10px 8px; font-size: 13px; color: #111827; }"
-        "QTableWidget::item:selected { background-color: #e0f2fe; color: #0369a1; }"
-    );
-
-    layoutPrincipal->addWidget(tablaUsuarios);
+    tablaUsuarios->setAlternatingRowColors(true);
+    tablaUsuarios->setStyleSheet(Estilos::estiloTabla());
+    layoutPrincipal->addWidget(tablaUsuarios, 1);
 }
 
-// Carga los usuarios guardados desde el archivo JSON mediante el GestorJSON
 void VistaUsuarios::cargarDatos() {
-    GestorJSON gestor;
-    listaUsuarios = gestor.cargarUsuarios();
+    ServicioUsuarios servicio;
+    QString error;
 
-    // Si la lista está vacía (primera ejecución), crea los usuarios por defecto
-    if (listaUsuarios.empty()) {
-        listaUsuarios.push_back(std::make_shared<Administrador>("admin", "admin123"));
-        listaUsuarios.push_back(std::make_shared<Cajero>("cajero1", "cajero123"));
-        gestor.guardarUsuarios(listaUsuarios);
+    if (!servicio.asegurarUsuariosIniciales(&error)) {
+        Estilos::mostrarError(this, QStringLiteral("Usuarios no disponibles"), error);
+        listaUsuarios.clear();
+        renderizarTabla();
+        return;
     }
 
+    listaUsuarios = servicio.listar(&error);
+    if (!error.isEmpty()) {
+        Estilos::mostrarError(this, QStringLiteral("No se pudieron leer los usuarios"), error);
+        listaUsuarios.clear();
+    }
     renderizarTabla();
 }
 
-// Dibuja y aplica colores a las filas de la tabla según los datos de la lista
 void VistaUsuarios::renderizarTabla() {
-    tablaUsuarios->setRowCount(0); // Limpia las filas previas
+    if (!tablaUsuarios) return;
+    tablaUsuarios->setRowCount(0);
 
-    for (const auto& usr : listaUsuarios) {
-        int fila = tablaUsuarios->rowCount();
+    for (const auto& usuario : listaUsuarios) {
+        const int fila = tablaUsuarios->rowCount();
         tablaUsuarios->insertRow(fila);
 
-        QTableWidgetItem* itemNombre = new QTableWidgetItem(usr->getNombreUsuario());
-        QTableWidgetItem* itemRol = new QTableWidgetItem(usr->rol());
-        QTableWidgetItem* itemEstado = new QTableWidgetItem("Activo");
+        auto* itemNombre = new QTableWidgetItem(usuario->getNombreUsuario());
+        auto* itemRol = new QTableWidgetItem(usuario->rol());
+        auto* itemEstado = new QTableWidgetItem(
+            usuario->isActivo() ? QStringLiteral("Activo") : QStringLiteral("Inactivo"));
 
-        // Asigna color azul al rol Administrador y verde al Cajero
-        if (usr->rol() == "Administrador") {
-            itemRol->setForeground(QBrush(QColor("#3b82f6")));
-        }
-        else {
-            itemRol->setForeground(QBrush(QColor("#10b981")));
-        }
-
-        itemEstado->setForeground(QBrush(QColor("#10b981")));
+        itemRol->setForeground(QBrush(QColor(
+            usuario->rol() == QStringLiteral("Administrador")
+                ? QStringLiteral("#3b82f6")
+                : QStringLiteral("#047857"))));
+        itemEstado->setForeground(QBrush(QColor(
+            usuario->isActivo() ? QStringLiteral("#047857")
+                                : QStringLiteral("#b91c1c"))));
 
         tablaUsuarios->setItem(fila, 0, itemNombre);
         tablaUsuarios->setItem(fila, 1, itemRol);
         tablaUsuarios->setItem(fila, 2, itemEstado);
     }
+
+    filtrarTabla();
 }
 
-// Compara el texto del campo de búsqueda y oculta las filas que no coincidan
 void VistaUsuarios::filtrarTabla() {
-    QString texto = txtBuscar->text().trimmed().toLower();
+    if (!tablaUsuarios || !txtBuscar) return;
 
-    for (int i = 0; i < tablaUsuarios->rowCount(); ++i) {
-        QString usr = tablaUsuarios->item(i, 0)->text().toLower();
-        bool coincide = texto.isEmpty() || usr.contains(texto);
-        tablaUsuarios->setRowHidden(i, !coincide);
+    const QString texto = txtBuscar->text().trimmed().toLower();
+    for (int fila = 0; fila < tablaUsuarios->rowCount(); ++fila) {
+        const auto* item = tablaUsuarios->item(fila, 0);
+        if (!item) continue;
+        tablaUsuarios->setRowHidden(
+            fila, !(texto.isEmpty() || item->text().toLower().contains(texto)));
     }
 }
 
-// Despliega la ventana modal para crear un nuevo usuario o modificar uno existente
 void VistaUsuarios::abrirFormularioUsuario(std::shared_ptr<Usuario> usuarioExistente) {
-    bool esEdicion = (usuarioExistente != nullptr);
-
-    QDialog dlg(this);
-    dlg.setWindowTitle(esEdicion ? "Editar Usuario" : "Nuevo Usuario");
-    dlg.setFixedSize(360, 320);
-    dlg.setStyleSheet("QDialog { background-color: #ffffff; } QLabel { color: #111827; font-size: 12px; font-weight: 500; }");
-
-    QVBoxLayout* layoutDlg = new QVBoxLayout(&dlg);
-    layoutDlg->setContentsMargins(20, 20, 20, 20);
-    layoutDlg->setSpacing(10);
-
-    QLabel* lblTitulo = new QLabel(esEdicion ? "Modificar Credenciales" : "Registrar Nuevo Usuario", &dlg);
-    lblTitulo->setStyleSheet("font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 5px;");
-    layoutDlg->addWidget(lblTitulo);
-
-    QLineEdit* inputUser = new QLineEdit(&dlg);
-    inputUser->setPlaceholderText("Nombre de usuario");
-    if (esEdicion) {
-        inputUser->setText(usuarioExistente->getNombreUsuario());
-        inputUser->setEnabled(false); // Deshabilita la edición del nombre de usuario en modo edición
+    if (!esAdministrador()) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Permiso denegado"),
+            QStringLiteral("Solo un administrador puede gestionar usuarios."));
+        return;
     }
 
-    QLineEdit* inputPass = new QLineEdit(&dlg);
-    inputPass->setPlaceholderText("Contraseña");
-    inputPass->setEchoMode(QLineEdit::Password);
+    const bool esEdicion = (usuarioExistente != nullptr);
 
-    // Botón dentro del cuadro de contraseña para alternar visibilidad (Ver / Ocultar)
-    QAction* actionVerPass = inputPass->addAction(QIcon(), QLineEdit::TrailingPosition);
-    actionVerPass->setText("👁️");
+    QDialog dialogo(this);
+    dialogo.setWindowTitle(esEdicion ? QStringLiteral("Editar Usuario")
+                                     : QStringLiteral("Nuevo Usuario"));
+    dialogo.setMinimumSize(370, 430);
+    dialogo.resize(400, 460);
+    dialogo.setStyleSheet(
+        QStringLiteral("QDialog { background-color: #ffffff; }"
+                       "QLabel { color: #111827; font-size: 12px; font-weight: 500; }"));
 
-    connect(actionVerPass, &QAction::triggered, [inputPass, actionVerPass]() {
-        if (inputPass->echoMode() == QLineEdit::Password) {
-            inputPass->setEchoMode(QLineEdit::Normal);
-            actionVerPass->setText("🔒");
-        }
-        else {
-            inputPass->setEchoMode(QLineEdit::Password);
-            actionVerPass->setText("👁️");
-        }
-        });
+    QVBoxLayout* layout = new QVBoxLayout(&dialogo);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(8);
 
+    QLabel* lblTitulo = new QLabel(
+        esEdicion ? QStringLiteral("Modificar Credenciales")
+                  : QStringLiteral("Registrar Nuevo Usuario"),
+        &dialogo);
+    lblTitulo->setStyleSheet(
+        QStringLiteral("font-size: 16px; font-weight: bold; color: #111827;"
+                       " margin-bottom: 5px;"));
+    layout->addWidget(lblTitulo);
+
+    QLineEdit* inputUsuario = new QLineEdit(&dialogo);
+    inputUsuario->setPlaceholderText(QStringLiteral("Nombre de usuario"));
+    inputUsuario->setMaxLength(64);
     if (esEdicion) {
-        inputPass->setText(usuarioExistente->getClave());
+        inputUsuario->setText(usuarioExistente->getNombreUsuario());
+        inputUsuario->setEnabled(false); // El nombre de usuario es la clave estable.
     }
 
-    QComboBox* comboRol = new QComboBox(&dlg);
-    comboRol->addItems({ "Cajero", "Administrador" });
+    QLineEdit* inputClave = new QLineEdit(&dialogo);
+    inputClave->setPlaceholderText(
+        esEdicion ? QStringLiteral("Dejar vacío para conservar la contraseña actual")
+                  : QStringLiteral("Contraseña (mínimo 6 caracteres)"));
+    inputClave->setEchoMode(QLineEdit::Password);
+    inputClave->setMaxLength(128);
+    // Nunca se precarga el hash almacenado en el archivo JSON.
+
+    QPushButton* btnVerClave = new QPushButton(QStringLiteral("Ver"), &dialogo);
+    btnVerClave->setFixedWidth(68);
+    btnVerClave->setCursor(Qt::PointingHandCursor);
+    btnVerClave->setStyleSheet(
+        QStringLiteral("QPushButton { background-color: #f3f4f6; color: #374151;"
+                       " font-weight: bold; border: 1px solid #d1d5db; border-radius: 8px;"
+                       " padding: 8px; font-size: 11px; }"
+                       "QPushButton:hover { background-color: #e5e7eb; }"));
+    connect(btnVerClave, &QPushButton::clicked, &dialogo, [inputClave, btnVerClave]() {
+        const bool oculta = inputClave->echoMode() == QLineEdit::Password;
+        inputClave->setEchoMode(oculta ? QLineEdit::Normal : QLineEdit::Password);
+        btnVerClave->setText(oculta ? QStringLiteral("Ocultar") : QStringLiteral("Ver"));
+    });
+
+    QComboBox* comboRol = new QComboBox(&dialogo);
+    comboRol->addItems({QStringLiteral("Cajero"), QStringLiteral("Administrador")});
     if (esEdicion) comboRol->setCurrentText(usuarioExistente->rol());
 
-    QString estiloCampos =
-        "QLineEdit, QComboBox { "
-        "background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 6px; "
-        "padding: 6px 10px; font-size: 13px; color: #111827; min-height: 25px; } "
-        "QLineEdit:focus, QComboBox:focus { border: 1px solid #10b981; }";
+    QCheckBox* checkActivo = new QCheckBox(QStringLiteral("Usuario activo"), &dialogo);
+    checkActivo->setChecked(esEdicion ? usuarioExistente->isActivo() : true);
+    checkActivo->setStyleSheet(QStringLiteral("color: #111827; font-size: 12px;"));
+    if (usuarioExistente
+        && usuarioActual
+        && usuarioExistente->getNombreUsuario() == usuarioActual->getNombreUsuario()) {
+        checkActivo->setEnabled(false); // No se puede desactivar a sí mismo.
+    }
 
-    inputUser->setStyleSheet(estiloCampos);
-    inputPass->setStyleSheet(estiloCampos);
+    const QString estiloCampos = Estilos::estiloEntrada();
+    inputUsuario->setStyleSheet(estiloCampos);
+    inputClave->setStyleSheet(estiloCampos);
     comboRol->setStyleSheet(estiloCampos);
 
-    layoutDlg->addWidget(new QLabel("Usuario:", &dlg));
-    layoutDlg->addWidget(inputUser);
-    layoutDlg->addWidget(new QLabel("Contraseña:", &dlg));
-    layoutDlg->addWidget(inputPass);
-    layoutDlg->addWidget(new QLabel("Rol de Acceso:", &dlg));
-    layoutDlg->addWidget(comboRol);
+    layout->addWidget(new QLabel(QStringLiteral("Usuario:"), &dialogo));
+    layout->addWidget(inputUsuario);
+    layout->addWidget(new QLabel(QStringLiteral("Contraseña:"), &dialogo));
 
-    QPushButton* btnGuardar = new QPushButton("Guardar Usuario", &dlg);
+    QHBoxLayout* layoutClave = new QHBoxLayout();
+    layoutClave->setSpacing(6);
+    layoutClave->addWidget(inputClave, 1);
+    layoutClave->addWidget(btnVerClave);
+    layout->addLayout(layoutClave);
+
+    layout->addWidget(new QLabel(QStringLiteral("Rol de Acceso:"), &dialogo));
+    layout->addWidget(comboRol);
+    layout->addWidget(checkActivo);
+
+    QPushButton* btnGuardar = new QPushButton(QStringLiteral("Guardar Usuario"), &dialogo);
     btnGuardar->setMinimumHeight(38);
-    btnGuardar->setStyleSheet(
-        "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border: none; border-radius: 8px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #059669; }"
-    );
+    btnGuardar->setStyleSheet(Estilos::estiloBotonPrincipal());
 
-    // Procesa el guardado del formulario
-    connect(btnGuardar, &QPushButton::clicked, [&]() {
-        // Validación de campos vacíos
-        if (inputUser->text().trimmed().isEmpty() || inputPass->text().trimmed().isEmpty()) {
-            QMessageBox msgBox(&dlg);
-            msgBox.setWindowTitle("Campos Vacíos");
-            msgBox.setText("Todos los campos son obligatorios.");
-            msgBox.setIcon(QMessageBox::Warning);
-            msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-            msgBox.exec();
+    connect(btnGuardar, &QPushButton::clicked, &dialogo, [&]() {
+        const QString nombre = inputUsuario->text().trimmed();
+        const QString clave = inputClave->text();
+        const QString rol = comboRol->currentText();
+
+        if (nombre.isEmpty()) {
+            Estilos::mostrarAdvertencia(&dialogo, QStringLiteral("Campo vacío"),
+                                        QStringLiteral("El nombre de usuario es obligatorio."));
+            return;
+        }
+        if (!esEdicion && clave.isEmpty()) {
+            Estilos::mostrarAdvertencia(&dialogo, QStringLiteral("Contraseña requerida"),
+                                        QStringLiteral("Ingrese una contraseña para el nuevo usuario."));
             return;
         }
 
-        QString username = inputUser->text().trimmed();
-        QString pass = inputPass->text().trimmed();
-        QString rol = comboRol->currentText();
+        ServicioUsuarios servicio;
+        QString error;
+        const bool correcto =
+            esEdicion
+                ? servicio.actualizar(nombre, clave, rol, checkActivo->isChecked(),
+                                      usuarioActual, &error)
+                : servicio.crear(nombre, clave, rol, usuarioActual, &error);
 
-        GestorJSON gestor;
-
-        if (esEdicion) {
-            // Reemplaza el objeto manteniendo el rol seleccionado
-            for (auto& u : listaUsuarios) {
-                if (u->getNombreUsuario() == username) {
-                    if (rol == "Administrador") {
-                        u = std::make_shared<Administrador>(username, pass);
-                    }
-                    else {
-                        u = std::make_shared<Cajero>(username, pass);
-                    }
-                    break;
-                }
-            }
-        }
-        else {
-            // Verifica que no exista un usuario con el mismo nombre
-            for (const auto& u : listaUsuarios) {
-                if (u->getNombreUsuario() == username) {
-                    QMessageBox msgBox(&dlg);
-                    msgBox.setWindowTitle("Usuario Existente");
-                    msgBox.setText("El nombre de usuario ya está registrado.");
-                    msgBox.setIcon(QMessageBox::Warning);
-                    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-                    msgBox.exec();
-                    return;
-                }
-            }
-
-            // Agrega el nuevo objeto a la lista
-            if (rol == "Administrador") {
-                listaUsuarios.push_back(std::make_shared<Administrador>(username, pass));
-            }
-            else {
-                listaUsuarios.push_back(std::make_shared<Cajero>(username, pass));
-            }
+        if (!correcto) {
+            Estilos::mostrarError(&dialogo, QStringLiteral("No se pudo guardar"), error);
+            return;
         }
 
-        // Guarda cambios en el disco y actualiza la tabla
-        gestor.guardarUsuarios(listaUsuarios);
-        renderizarTabla();
+        dialogo.accept();
+        cargarDatos();
+        Estilos::mostrarInfo(this, QStringLiteral("Usuarios actualizados"),
+                             QStringLiteral("Los cambios se guardaron correctamente."));
+    });
 
-        QMessageBox msgBox(&dlg);
-        msgBox.setWindowTitle("Éxito");
-        msgBox.setText("Los cambios de usuarios se guardaron correctamente.");
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
-
-        dlg.accept();
-        });
-
-    layoutDlg->addSpacing(10);
-    layoutDlg->addWidget(btnGuardar);
-
-    dlg.exec();
+    layout->addSpacing(8);
+    layout->addWidget(btnGuardar);
+    dialogo.exec();
 }
 
-// Elimina el usuario seleccionado asegurando la protección del usuario 'admin'
-void VistaUsuarios::eliminarUsuarioSeleccionado() {
-    int fila = tablaUsuarios->currentRow();
+void VistaUsuarios::desactivarUsuarioSeleccionado() {
+    if (!esAdministrador()) return;
+
+    const int fila = tablaUsuarios->currentRow();
     if (fila < 0) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Selección Requerida");
-        msgBox.setText("Seleccione un usuario para eliminar.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione un usuario para desactivar."));
         return;
     }
 
-    QString username = tablaUsuarios->item(fila, 0)->text();
+    const QString nombre = tablaUsuarios->item(fila, 0)->text();
 
-    // Bloqueo de seguridad para evitar borrar el administrador principal
-    if (username == "admin") {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Acción Protegida");
-        msgBox.setText("No se puede eliminar el usuario 'admin' principal del sistema.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
+    QMessageBox confirmacion(this);
+    confirmacion.setWindowTitle(QStringLiteral("Confirmar desactivación"));
+    confirmacion.setText(
+        QStringLiteral("¿Desea desactivar al usuario '%1'?\n\nEl registro se conservará y "
+                       "ya no podrá iniciar sesión.").arg(nombre));
+    confirmacion.setIcon(QMessageBox::Question);
+    QPushButton* btnSi = confirmacion.addButton(QStringLiteral("Sí, desactivar"),
+                                                QMessageBox::YesRole);
+    confirmacion.addButton(QStringLiteral("Cancelar"), QMessageBox::NoRole);
+    Estilos::estilizarMensaje(confirmacion, true);
+    confirmacion.exec();
+    if (confirmacion.clickedButton() != btnSi) return;
+
+    ServicioUsuarios servicio;
+    QString error;
+    if (servicio.desactivar(nombre, usuarioActual, &error)) {
+        cargarDatos();
+        Estilos::mostrarInfo(this, QStringLiteral("Usuario desactivado"),
+                             QStringLiteral("El usuario ya no podrá acceder al sistema."));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo desactivar"), error);
+    }
+}
+
+void VistaUsuarios::reactivarUsuarioSeleccionado() {
+    if (!esAdministrador()) return;
+
+    const int fila = tablaUsuarios->currentRow();
+    if (fila < 0) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione un usuario para reactivar."));
         return;
     }
 
-    // Diálogo de confirmación antes de eliminar
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("Confirmar Eliminación");
-    msgBox.setText(QString("¿Está seguro de que desea eliminar al usuario '%1'?").arg(username));
-    msgBox.setIcon(QMessageBox::Question);
-    QPushButton* btnSi = msgBox.addButton("Sí, Eliminar", QMessageBox::YesRole);
-    msgBox.addButton("Cancelar", QMessageBox::NoRole);
-    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #ef4444; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 12px; font-size: 12px; }");
-    msgBox.exec();
-
-    if (msgBox.clickedButton() == btnSi) {
-        // Remueve el puntero de la lista
-        for (auto it = listaUsuarios.begin(); it != listaUsuarios.end(); ++it) {
-            if ((*it)->getNombreUsuario() == username) {
-                listaUsuarios.erase(it);
-                break;
-            }
-        }
-
-        // Actualiza el archivo JSON y refresca la interfaz gráfica
-        GestorJSON gestor;
-        gestor.guardarUsuarios(listaUsuarios);
-        renderizarTabla();
+    const QString nombre = tablaUsuarios->item(fila, 0)->text();
+    ServicioUsuarios servicio;
+    QString error;
+    if (servicio.reactivar(nombre, usuarioActual, &error)) {
+        cargarDatos();
+        Estilos::mostrarInfo(this, QStringLiteral("Usuario reactivado"),
+                             QStringLiteral("El usuario puede volver a acceder al sistema."));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo reactivar"), error);
     }
 }

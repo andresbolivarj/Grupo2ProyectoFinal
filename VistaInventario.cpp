@@ -1,8 +1,15 @@
 #include "VistaInventario.h"
-#include <QShowEvent>
-#include <QDateTime>
+
+#include "CategoriasProducto.h"
+#include "Estilos.h"
+#include "ServicioInventario.h"
+
 #include <QBrush>
+#include <QCheckBox>
 #include <QColor>
+#include <QDateTime>
+#include <QRegularExpression>
+#include <QShowEvent>
 #include <QStringList>
 #include <algorithm>
 #include <utility>
@@ -16,6 +23,11 @@ VistaInventario::VistaInventario(std::shared_ptr<Usuario> usuario, QWidget* pare
     cargarDatos();
 }
 
+bool VistaInventario::esAdministrador() const {
+    return usuarioActual && usuarioActual->isActivo()
+           && usuarioActual->rol() == QStringLiteral("Administrador");
+}
+
 void VistaInventario::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     actualizar();
@@ -27,176 +39,497 @@ void VistaInventario::actualizar() {
 
 void VistaInventario::configurarInterfaz() {
     QVBoxLayout* layoutRaiz = new QVBoxLayout(this);
-    pestañas = new QTabWidget(this);
-    paginaInventario = new QWidget(pestañas);
+    layoutRaiz->setContentsMargins(16, 16, 16, 16);
+
+    pestanas = new QTabWidget(this);
+    paginaInventario = new QWidget(pestanas);
     QVBoxLayout* layoutPrincipal = new QVBoxLayout(paginaInventario);
-    layoutPrincipal->setContentsMargins(20, 20, 20, 20);
-    layoutPrincipal->setSpacing(15);
-    this->setStyleSheet("background-color: #f8f9fa;");
+    layoutPrincipal->setContentsMargins(0, 0, 0, 0);
+    layoutPrincipal->setSpacing(12);
+    setStyleSheet(QStringLiteral("background-color: #f8f9fa;"));
 
-    // BARRA SUPERIOR
     QHBoxLayout* layoutTop = new QHBoxLayout();
-    layoutTop->setSpacing(10);
+    layoutTop->setSpacing(8);
 
-    txtBuscar = new QLineEdit(this);
-    txtBuscar->setPlaceholderText("Buscar por nombre o código...");
-    txtBuscar->setStyleSheet(
-        "QLineEdit { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; "
-        "padding: 8px 12px; font-size: 13px; color: #111827; }"
-        "QLineEdit:focus { border: 1px solid #047857; }"
-    );
+    txtBuscar = new QLineEdit(paginaInventario);
+    txtBuscar->setPlaceholderText(QStringLiteral("Buscar por nombre o código..."));
+    txtBuscar->setStyleSheet(Estilos::estiloEntrada());
     connect(txtBuscar, &QLineEdit::textChanged, this, &VistaInventario::filtrarTabla);
 
-    comboCategoriaFiltro = new QComboBox(this);
-    comboCategoriaFiltro->addItems({"Todas las Categorías", "Snacks", "Bebidas", "Comida", "Útiles", "Higiene"});
-    comboCategoriaFiltro->setStyleSheet(
-        "QComboBox { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; "
-        "padding: 6px 12px; font-size: 12px; color: #111827; }"
-    );
-    connect(comboCategoriaFiltro, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VistaInventario::filtrarTabla);
+    comboCategoriaFiltro = new QComboBox(paginaInventario);
+    comboCategoriaFiltro->addItem(QStringLiteral("Todas las Categorías"));
+    comboCategoriaFiltro->addItems(categoriasProductoPredefinidas());
+    comboCategoriaFiltro->setStyleSheet(Estilos::estiloEntrada());
+    connect(comboCategoriaFiltro, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &VistaInventario::filtrarTabla);
 
-    btnAgregar = new QPushButton("+ Nuevo Producto", this);
-    btnAgregar->setStyleSheet(
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #065f46; }"
-    );
-    connect(btnAgregar, &QPushButton::clicked, [this]() { abrirFormularioProducto(nullptr); });
+    btnAgregar = new QPushButton(QStringLiteral("+ Nuevo Producto"), paginaInventario);
+    btnAgregar->setCursor(Qt::PointingHandCursor);
+    btnAgregar->setStyleSheet(Estilos::estiloBotonPrincipal());
+    connect(btnAgregar, &QPushButton::clicked, this,
+            [this]() { abrirFormularioProducto(nullptr); });
 
-    btnEditar = new QPushButton(" Editar", this);
-    btnEditar->setStyleSheet(
-        "QPushButton { background-color: #1d4ed8; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #1e40af; }"
-    );
-    connect(btnEditar, &QPushButton::clicked, [this]() {
-        int fila = tablaProductos->currentRow();
+    btnEditar = new QPushButton(QStringLiteral("Editar"), paginaInventario);
+    btnEditar->setCursor(Qt::PointingHandCursor);
+    btnEditar->setStyleSheet(Estilos::estiloBotonSecundario());
+    connect(btnEditar, &QPushButton::clicked, this, [this]() {
+        const int fila = tablaProductos->currentRow();
         if (fila < 0) {
-            QMessageBox msgBox(this);
-            msgBox.setWindowTitle("Selección requerida");
-            msgBox.setText("Por favor, seleccione un producto de la tabla para editar.");
-            msgBox.setIcon(QMessageBox::Warning);
-            msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-            msgBox.exec();
+            Estilos::mostrarAdvertencia(
+                this, QStringLiteral("Selección requerida"),
+                QStringLiteral("Seleccione un producto de la tabla para editar."));
             return;
         }
-        QString idProd = tablaProductos->item(fila, 0)->text();
-        for (auto& p : listaProductos) {
-            if (p.id == idProd) {
-                abrirFormularioProducto(&p);
-                break;
+        const QString id = tablaProductos->item(fila, 0)->text();
+        for (auto& producto : listaProductos) {
+            if (producto.getId() == id) {
+                abrirFormularioProducto(&producto);
+                return;
             }
         }
     });
 
-    btnEliminar = new QPushButton(" Eliminar", this);
-    btnEliminar->setStyleSheet(
-        "QPushButton { background-color: #b91c1c; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; }"
-        "QPushButton:hover { background-color: #991b1b; }"
-    );
-    connect(btnEliminar, &QPushButton::clicked, this, &VistaInventario::eliminarProductoSeleccionado);
+    btnDesactivar = new QPushButton(QStringLiteral("Desactivar"), paginaInventario);
+    btnDesactivar->setCursor(Qt::PointingHandCursor);
+    btnDesactivar->setStyleSheet(Estilos::estiloBotonPeligro());
+    connect(btnDesactivar, &QPushButton::clicked, this,
+            &VistaInventario::desactivarProductoSeleccionado);
+
+    btnReactivar = new QPushButton(QStringLiteral("Reactivar"), paginaInventario);
+    btnReactivar->setCursor(Qt::PointingHandCursor);
+    btnReactivar->setStyleSheet(Estilos::estiloBotonPrincipal());
+    connect(btnReactivar, &QPushButton::clicked, this,
+            &VistaInventario::reactivarProductoSeleccionado);
 
     layoutTop->addWidget(txtBuscar, 4);
     layoutTop->addWidget(comboCategoriaFiltro, 2);
     layoutTop->addWidget(btnAgregar, 2);
     layoutTop->addWidget(btnEditar, 1);
-    layoutTop->addWidget(btnEliminar, 1);
+    layoutTop->addWidget(btnDesactivar, 1);
+    layoutTop->addWidget(btnReactivar, 1);
+
+    if (!esAdministrador()) {
+        btnAgregar->setVisible(false);
+        btnEditar->setVisible(false);
+        btnDesactivar->setVisible(false);
+        btnReactivar->setVisible(false);
+        QLabel* lblConsulta = new QLabel(
+            QStringLiteral("Modo consulta: solo un administrador puede modificar el inventario."),
+            paginaInventario);
+        lblConsulta->setStyleSheet(
+            QStringLiteral("color: #6b7280; font-size: 12px; font-style: italic;"));
+        layoutPrincipal->addWidget(lblConsulta);
+    }
 
     layoutPrincipal->addLayout(layoutTop);
 
-    // TABLA DE INVENTARIO
     tablaProductos = new QTableWidget(paginaInventario);
     tablaProductos->setColumnCount(6);
-    tablaProductos->setHorizontalHeaderLabels({"ID / Código", "Nombre", "Categoría", "Precio (₡)", "Stock", "Estado"});
+    tablaProductos->setHorizontalHeaderLabels({
+        QStringLiteral("ID / Código"), QStringLiteral("Nombre"),
+        QStringLiteral("Categoría"), QStringLiteral("Precio (₡)"),
+        QStringLiteral("Stock"), QStringLiteral("Estado")
+    });
     tablaProductos->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    tablaProductos->verticalHeader()->setVisible(false);
     tablaProductos->setSelectionBehavior(QAbstractItemView::SelectRows);
     tablaProductos->setSelectionMode(QAbstractItemView::SingleSelection);
     tablaProductos->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tablaProductos->setStyleSheet(
-        "QTableWidget { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; gridline-color: #f3f4f6; }"
-        "QHeaderView::section { background-color: #f9fafb; color: #374151; font-weight: bold; border: none; padding: 10px; font-size: 12px; }"
-        "QTableWidget::item { padding: 8px; font-size: 13px; color: #111827; }"
-        "QTableWidget::item:selected { background-color: #e0f2fe; color: #0369a1; }"
-    );
+    tablaProductos->setAlternatingRowColors(true);
+    tablaProductos->setStyleSheet(Estilos::estiloTabla());
+    layoutPrincipal->addWidget(tablaProductos, 1);
 
-    layoutPrincipal->addWidget(tablaProductos);
-    pestañas->addTab(paginaInventario, "Gestión de Inventario");
+    pestanas->addTab(paginaInventario, QStringLiteral("Gestión de Inventario"));
 
-    if (usuarioActual && usuarioActual->rol() == "Administrador") {
-        QWidget* paginaAuditoria = new QWidget(pestañas);
+    if (esAdministrador()) {
+        QWidget* paginaAuditoria = new QWidget(pestanas);
         QVBoxLayout* layoutAuditoria = new QVBoxLayout(paginaAuditoria);
         QHBoxLayout* barraAuditoria = new QHBoxLayout();
+
         txtBuscarAuditoria = new QLineEdit(paginaAuditoria);
-        txtBuscarAuditoria->setPlaceholderText("Buscar en el historial...");
-        QPushButton* btnActualizarAuditoria = new QPushButton("Actualizar", paginaAuditoria);
-        barraAuditoria->addWidget(txtBuscarAuditoria);
+        txtBuscarAuditoria->setPlaceholderText(QStringLiteral("Buscar en el historial..."));
+        txtBuscarAuditoria->setStyleSheet(Estilos::estiloEntrada());
+
+        QPushButton* btnActualizarAuditoria = new QPushButton(
+            QStringLiteral("Actualizar"), paginaAuditoria);
+        btnActualizarAuditoria->setStyleSheet(Estilos::estiloBotonSecundario());
+
+        barraAuditoria->addWidget(txtBuscarAuditoria, 1);
         barraAuditoria->addWidget(btnActualizarAuditoria);
+
         tablaAuditoria = new QTableWidget(paginaAuditoria);
         tablaAuditoria->setColumnCount(5);
-        tablaAuditoria->setHorizontalHeaderLabels({"Fecha y Hora", "Acción", "Producto", "Detalle del Cambio", "Realizado por"});
+        tablaAuditoria->setHorizontalHeaderLabels({
+            QStringLiteral("Fecha y Hora"), QStringLiteral("Acción"),
+            QStringLiteral("Producto"), QStringLiteral("Detalle del Cambio"),
+            QStringLiteral("Realizado por")
+        });
         tablaAuditoria->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        tablaAuditoria->verticalHeader()->setVisible(false);
         tablaAuditoria->setEditTriggers(QAbstractItemView::NoEditTriggers);
         tablaAuditoria->setSelectionBehavior(QAbstractItemView::SelectRows);
-        tablaAuditoria->setSortingEnabled(false);
+        tablaAuditoria->setAlternatingRowColors(true);
+        tablaAuditoria->setStyleSheet(Estilos::estiloTabla());
+
         layoutAuditoria->addLayout(barraAuditoria);
-        layoutAuditoria->addWidget(tablaAuditoria);
-        pestañas->addTab(paginaAuditoria, "Historial de Cambios");
-        connect(btnActualizarAuditoria, &QPushButton::clicked, this, &VistaInventario::cargarAuditoria);
-        connect(txtBuscarAuditoria, &QLineEdit::textChanged, this, &VistaInventario::filtrarAuditoria);
+        layoutAuditoria->addWidget(tablaAuditoria, 1);
+        pestanas->addTab(paginaAuditoria, QStringLiteral("Historial de Cambios"));
+
+        connect(btnActualizarAuditoria, &QPushButton::clicked,
+                this, &VistaInventario::cargarAuditoria);
+        connect(txtBuscarAuditoria, &QLineEdit::textChanged,
+                this, &VistaInventario::filtrarAuditoria);
     }
-    layoutRaiz->addWidget(pestañas);
+
+    layoutRaiz->addWidget(pestanas);
 }
 
 void VistaInventario::cargarDatos() {
-    GestorJSON gestor;
-    listaProductos = gestor.cargarProductos();
+    ServicioInventario inventario;
+    QString error;
 
-    if (listaProductos.empty()) {
-        listaProductos = {
-            {"S001", "Papas Tostadas Tosty", 750.0, "Snack de papa 115g", "Snacks", 25},
-            {"S002", "Platanitos Salados", 600.0, "Plátano tostado 100g", "Snacks", 15},
-            {"S003", "Doritos Queso Nacho", 850.0, "Snack de maíz 120g", "Snacks", 8},
-            {"S004", "Chocolate Jet", 350.0, "Barra de chocolate 12g", "Snacks", 30},
-            {"S005", "Galletas Chicky", 450.0, "Galletas con cobertura", "Snacks", 12},
-            {"B001", "Agua Cristal 600ml", 600.0, "Agua embotellada", "Bebidas", 50},
-            {"B002", "Café Caliente 8oz", 700.0, "Café negro / con leche", "Bebidas", 40},
-            {"B003", "Coca-Cola 600ml", 1100.0, "Gaseosa en botella", "Bebidas", 18},
-            {"B005", "Fresco Leche Fresa", 800.0, "Dos Pinos 315ml", "Bebidas", 10},
-            {"C001", "Empanada de Carne", 1200.0, "Arreglada y caliente", "Comida", 5},
-            {"C002", "Empanada de Queso", 1100.0, "Arreglada y caliente", "Comida", 7},
-            {"C003", "Muffin de Chispas", 950.0, "Repostería dulce", "Comida", 9},
-            {"U001", "Lapicero BIC Negro", 300.0, "Punto mediano", "Útiles", 100},
-            {"U002", "Lapicero BIC Azul", 300.0, "Punto mediano", "Útiles", 100},
-            {"U004", "Cuaderno Universitario", 1850.0, "100 hojas cosido", "Útiles", 20},
-            {"H001", "Alcohol en Gel 60ml", 950.0, "Portátil antibacterial", "Higiene", 14},
-            {"H002", "Pañuelos Kleenex", 450.0, "Paquete de bolsillo", "Higiene", 22}
-        };
-        gestor.guardarProductos(listaProductos);
+    if (!inventario.asegurarInventarioInicial(&error)) {
+        Estilos::mostrarError(this, QStringLiteral("Inventario no disponible"), error);
+        listaProductos.clear();
+        renderizarTabla();
+        return;
+    }
+
+    listaProductos = inventario.listar(&error);
+    if (!error.isEmpty()) {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo leer el inventario"), error);
+        listaProductos.clear();
     }
 
     renderizarTabla();
     cargarAuditoria();
 }
 
+void VistaInventario::renderizarTabla() {
+    if (!tablaProductos) return;
+    tablaProductos->setRowCount(0);
+
+    for (const auto& producto : listaProductos) {
+        const int fila = tablaProductos->rowCount();
+        tablaProductos->insertRow(fila);
+
+        auto* itemID = new QTableWidgetItem(producto.getId());
+        auto* itemNombre = new QTableWidgetItem(producto.getNombre());
+        auto* itemCategoria = new QTableWidgetItem(producto.getCategoria());
+        auto* itemPrecio = new QTableWidgetItem(
+            QStringLiteral("₡ %1").arg(producto.getPrecio(), 0, 'f', 2));
+        auto* itemStock = new QTableWidgetItem(QString::number(producto.getStock()));
+        auto* itemEstado = new QTableWidgetItem();
+
+        itemPrecio->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        itemStock->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        if (!producto.isActivo()) {
+            itemEstado->setText(QStringLiteral("Inactivo"));
+            itemEstado->setForeground(QBrush(QColor(QStringLiteral("#6b7280"))));
+            itemNombre->setForeground(QBrush(QColor(QStringLiteral("#6b7280"))));
+        } else if (producto.getStock() <= 0) {
+            itemEstado->setText(QStringLiteral("Agotado"));
+            itemEstado->setForeground(QBrush(QColor(QStringLiteral("#b91c1c"))));
+            itemStock->setForeground(QBrush(QColor(QStringLiteral("#b91c1c"))));
+        } else if (producto.getStock() <= 5) {
+            itemEstado->setText(QStringLiteral("Stock Bajo"));
+            itemEstado->setForeground(QBrush(QColor(QStringLiteral("#b45309"))));
+            itemStock->setForeground(QBrush(QColor(QStringLiteral("#b45309"))));
+        } else {
+            itemEstado->setText(QStringLiteral("Disponible"));
+            itemEstado->setForeground(QBrush(QColor(QStringLiteral("#047857"))));
+        }
+
+        tablaProductos->setItem(fila, 0, itemID);
+        tablaProductos->setItem(fila, 1, itemNombre);
+        tablaProductos->setItem(fila, 2, itemCategoria);
+        tablaProductos->setItem(fila, 3, itemPrecio);
+        tablaProductos->setItem(fila, 4, itemStock);
+        tablaProductos->setItem(fila, 5, itemEstado);
+    }
+
+    filtrarTabla();
+}
+
+void VistaInventario::filtrarTabla() {
+    if (!tablaProductos || !txtBuscar || !comboCategoriaFiltro) return;
+
+    const QString texto = txtBuscar->text().trimmed().toLower();
+    const QString categoriaFiltro = comboCategoriaFiltro->currentText();
+
+    for (int fila = 0; fila < tablaProductos->rowCount(); ++fila) {
+        const auto* itemId = tablaProductos->item(fila, 0);
+        const auto* itemNombre = tablaProductos->item(fila, 1);
+        const auto* itemCategoria = tablaProductos->item(fila, 2);
+        if (!itemId || !itemNombre || !itemCategoria) continue;
+
+        const QString id = itemId->text().toLower();
+        const QString nombre = itemNombre->text().toLower();
+        const QString categoria = itemCategoria->text();
+
+        const bool coincideTexto = texto.isEmpty() || id.contains(texto)
+                                   || nombre.contains(texto);
+        const bool coincideCategoria = categoriaFiltro == QStringLiteral("Todas las Categorías")
+                                       || categoria == categoriaFiltro;
+        tablaProductos->setRowHidden(fila, !(coincideTexto && coincideCategoria));
+    }
+}
+
+void VistaInventario::abrirFormularioProducto(ProductoItem* productoExistente) {
+    if (!esAdministrador()) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Permiso denegado"),
+            QStringLiteral("Solo un administrador puede modificar el inventario."));
+        return;
+    }
+
+    const bool esEdicion = (productoExistente != nullptr);
+
+    QDialog dialogo(this);
+    dialogo.setWindowTitle(esEdicion ? QStringLiteral("Editar Producto")
+                                     : QStringLiteral("Nuevo Producto"));
+    dialogo.setMinimumSize(390, 500);
+    dialogo.resize(430, 560);
+    dialogo.setStyleSheet(
+        QStringLiteral("QDialog { background-color: #ffffff; }"
+                       "QLabel { color: #111827; font-size: 12px; font-weight: 500; }"));
+
+    QVBoxLayout* layout = new QVBoxLayout(&dialogo);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(8);
+
+    QLabel* lblTitulo = new QLabel(
+        esEdicion ? QStringLiteral("Modificar Datos de Producto")
+                  : QStringLiteral("Registrar Nuevo Producto"),
+        &dialogo);
+    lblTitulo->setStyleSheet(
+        QStringLiteral("font-size: 16px; font-weight: bold; color: #111827;"
+                       " margin-bottom: 5px;"));
+    layout->addWidget(lblTitulo);
+
+    QLineEdit* inputID = new QLineEdit(&dialogo);
+    inputID->setPlaceholderText(QStringLiteral("Código ID (ej: S006)"));
+    inputID->setMaxLength(20);
+    if (esEdicion) {
+        inputID->setText(productoExistente->getId());
+        inputID->setEnabled(false);
+    }
+
+    QLineEdit* inputNombre = new QLineEdit(&dialogo);
+    inputNombre->setPlaceholderText(QStringLiteral("Nombre del producto"));
+    inputNombre->setMaxLength(80);
+    if (esEdicion) inputNombre->setText(productoExistente->getNombre());
+
+    QLineEdit* inputDescripcion = new QLineEdit(&dialogo);
+    inputDescripcion->setPlaceholderText(QStringLiteral("Descripción breve"));
+    inputDescripcion->setMaxLength(200);
+    if (esEdicion) inputDescripcion->setText(productoExistente->getDescripcion());
+
+    QComboBox* comboCategoria = new QComboBox(&dialogo);
+    comboCategoria->addItems(categoriasProductoPredefinidas());
+    if (esEdicion) comboCategoria->setCurrentText(productoExistente->getCategoria());
+
+    QDoubleSpinBox* spinPrecio = new QDoubleSpinBox(&dialogo);
+    spinPrecio->setRange(0.01, 10000000.0);
+    spinPrecio->setDecimals(2);
+    spinPrecio->setPrefix(QStringLiteral("₡ "));
+    if (esEdicion) spinPrecio->setValue(productoExistente->getPrecio());
+
+    QSpinBox* spinStock = new QSpinBox(&dialogo);
+    spinStock->setRange(0, 1000000);
+    if (esEdicion) spinStock->setValue(productoExistente->getStock());
+
+    QCheckBox* checkActivo = new QCheckBox(QStringLiteral("Producto activo"), &dialogo);
+    checkActivo->setChecked(esEdicion ? productoExistente->isActivo() : true);
+    checkActivo->setStyleSheet(QStringLiteral("color: #111827; font-size: 12px;"));
+
+    const QString estiloCampos = Estilos::estiloEntrada();
+    inputID->setStyleSheet(estiloCampos);
+    inputNombre->setStyleSheet(estiloCampos);
+    inputDescripcion->setStyleSheet(estiloCampos);
+    comboCategoria->setStyleSheet(estiloCampos);
+    spinPrecio->setStyleSheet(estiloCampos);
+    spinStock->setStyleSheet(estiloCampos);
+
+    layout->addWidget(new QLabel(QStringLiteral("Código ID:"), &dialogo));
+    layout->addWidget(inputID);
+    layout->addWidget(new QLabel(QStringLiteral("Nombre:"), &dialogo));
+    layout->addWidget(inputNombre);
+    layout->addWidget(new QLabel(QStringLiteral("Descripción:"), &dialogo));
+    layout->addWidget(inputDescripcion);
+    layout->addWidget(new QLabel(QStringLiteral("Categoría:"), &dialogo));
+    layout->addWidget(comboCategoria);
+
+    QHBoxLayout* layoutValores = new QHBoxLayout();
+    layoutValores->setSpacing(10);
+    QVBoxLayout* columnaPrecio = new QVBoxLayout();
+    columnaPrecio->addWidget(new QLabel(QStringLiteral("Precio:"), &dialogo));
+    columnaPrecio->addWidget(spinPrecio);
+    QVBoxLayout* columnaStock = new QVBoxLayout();
+    columnaStock->addWidget(new QLabel(QStringLiteral("Stock:"), &dialogo));
+    columnaStock->addWidget(spinStock);
+    layoutValores->addLayout(columnaPrecio);
+    layoutValores->addLayout(columnaStock);
+    layout->addLayout(layoutValores);
+    layout->addWidget(checkActivo);
+
+    QPushButton* btnGuardar = new QPushButton(QStringLiteral("Guardar Producto"), &dialogo);
+    btnGuardar->setMinimumHeight(40);
+    btnGuardar->setStyleSheet(Estilos::estiloBotonPrincipal());
+
+    connect(btnGuardar, &QPushButton::clicked, &dialogo, [&]() {
+        const QString id = inputID->text().trimmed();
+        const QString nombre = inputNombre->text().trimmed();
+        if (id.isEmpty() || nombre.isEmpty()) {
+            Estilos::mostrarAdvertencia(&dialogo, QStringLiteral("Campos vacíos"),
+                                        QStringLiteral("El código ID y el Nombre son obligatorios."));
+            return;
+        }
+
+        ProductoItem producto;
+        producto.setId(id);
+        producto.setNombre(nombre);
+        producto.setDescripcion(inputDescripcion->text().trimmed());
+        producto.setCategoria(comboCategoria->currentText());
+        producto.setPrecio(spinPrecio->value());
+        producto.setStock(spinStock->value());
+        producto.setActivo(checkActivo->isChecked());
+
+        ServicioInventario inventario;
+        QString error;
+        const bool correcto = esEdicion
+                                  ? inventario.actualizar(producto, usuarioActual, &error)
+                                  : inventario.crear(producto, usuarioActual, &error);
+        if (!correcto) {
+            Estilos::mostrarError(&dialogo, QStringLiteral("No se pudo guardar"), error);
+            return;
+        }
+
+        dialogo.accept();
+        cargarDatos();
+        emit inventarioModificado();
+        if (!inventario.ultimaAdvertencia().isEmpty()) {
+            Estilos::mostrarAdvertencia(this, QStringLiteral("Auditoría incompleta"),
+                                        inventario.ultimaAdvertencia());
+        }
+        Estilos::mostrarInfo(this, QStringLiteral("Inventario actualizado"),
+                             QStringLiteral("El producto se guardó correctamente."));
+    });
+
+    layout->addSpacing(8);
+    layout->addWidget(btnGuardar);
+    dialogo.exec();
+}
+
+void VistaInventario::desactivarProductoSeleccionado() {
+    if (!esAdministrador()) return;
+
+    const int fila = tablaProductos->currentRow();
+    if (fila < 0) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione un producto de la tabla para desactivar."));
+        return;
+    }
+
+    const QString id = tablaProductos->item(fila, 0)->text();
+    const QString nombre = tablaProductos->item(fila, 1)->text();
+
+    QMessageBox confirmacion(this);
+    confirmacion.setWindowTitle(QStringLiteral("Confirmar desactivación"));
+    confirmacion.setText(
+        QStringLiteral("¿Desea desactivar '%1'?\n\nEl producto no se eliminará físicamente "
+                       "y su historial de ventas se conservará.").arg(nombre));
+    confirmacion.setIcon(QMessageBox::Question);
+    QPushButton* btnSi = confirmacion.addButton(QStringLiteral("Sí, desactivar"),
+                                                QMessageBox::YesRole);
+    confirmacion.addButton(QStringLiteral("Cancelar"), QMessageBox::NoRole);
+    Estilos::estilizarMensaje(confirmacion, true);
+    confirmacion.exec();
+    if (confirmacion.clickedButton() != btnSi) return;
+
+    ServicioInventario inventario;
+    QString error;
+    if (inventario.desactivar(id, usuarioActual, &error)) {
+        cargarDatos();
+        emit inventarioModificado();
+        if (!inventario.ultimaAdvertencia().isEmpty()) {
+            Estilos::mostrarAdvertencia(this, QStringLiteral("Auditoría incompleta"),
+                                        inventario.ultimaAdvertencia());
+        }
+        Estilos::mostrarInfo(this, QStringLiteral("Producto desactivado"),
+                             QStringLiteral("El producto ya no estará disponible para la venta."));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo desactivar"), error);
+    }
+}
+
+void VistaInventario::reactivarProductoSeleccionado() {
+    if (!esAdministrador()) return;
+
+    const int fila = tablaProductos->currentRow();
+    if (fila < 0) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione un producto de la tabla para reactivar."));
+        return;
+    }
+
+    const QString id = tablaProductos->item(fila, 0)->text();
+    ServicioInventario inventario;
+    QString error;
+    if (inventario.reactivar(id, usuarioActual, &error)) {
+        cargarDatos();
+        emit inventarioModificado();
+        if (!inventario.ultimaAdvertencia().isEmpty()) {
+            Estilos::mostrarAdvertencia(this, QStringLiteral("Auditoría incompleta"),
+                                        inventario.ultimaAdvertencia());
+        }
+        Estilos::mostrarInfo(this, QStringLiteral("Producto reactivado"),
+                             QStringLiteral("El producto vuelve a estar disponible para la venta."));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo reactivar"), error);
+    }
+}
+
 void VistaInventario::cargarAuditoria() {
     if (!tablaAuditoria) return;
-    GestorJSON gestor;
-    auto registros = gestor.cargarAuditoriaProductos();
+
+    ServicioInventario inventario;
+    QString error;
+    auto registros = inventario.listarAuditoria(&error);
+    if (!error.isEmpty()) {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo leer la auditoría"), error);
+        registros.clear();
+    }
+
     std::stable_sort(registros.begin(), registros.end(), [](const auto& a, const auto& b) {
-        return QDateTime::fromString(a.fechaHora, "yyyy-MM-dd HH:mm:ss") >
-               QDateTime::fromString(b.fechaHora, "yyyy-MM-dd HH:mm:ss");
+        return QDateTime::fromString(a.fechaHora, QStringLiteral("yyyy-MM-dd HH:mm:ss"))
+               > QDateTime::fromString(b.fechaHora, QStringLiteral("yyyy-MM-dd HH:mm:ss"));
     });
+
     tablaAuditoria->setRowCount(0);
     for (const auto& registro : registros) {
         const int fila = tablaAuditoria->rowCount();
         tablaAuditoria->insertRow(fila);
-        const QStringList valores{registro.fechaHora, registro.accion, registro.nombreProducto,
-                                  registro.detalleCambio, registro.usuarioResponsable};
-        for (int columna = 0; columna < valores.size(); ++columna)
-            tablaAuditoria->setItem(fila, columna, new QTableWidgetItem(valores[columna]));
-        const QString color = registro.accion == "AÑADIDO" ? "#047857" :
-                              registro.accion == "ELIMINADO" ? "#b91c1c" : "#1d4ed8";
+        const QStringList valores{
+            registro.fechaHora, registro.accion, registro.nombreProducto,
+            registro.detalleCambio, registro.usuarioResponsable
+        };
+        for (int columna = 0; columna < valores.size(); ++columna) {
+            tablaAuditoria->setItem(fila, columna,
+                                    new QTableWidgetItem(valores.at(columna)));
+        }
+
+        QString color = QStringLiteral("#1d4ed8");
+        if (registro.accion == Auditoria::aCadena(Auditoria::Accion::Anadido)) {
+            color = QStringLiteral("#047857");
+        } else if (registro.accion == Auditoria::aCadena(Auditoria::Accion::Desactivado)) {
+            color = QStringLiteral("#b91c1c");
+        } else if (registro.accion == Auditoria::aCadena(Auditoria::Accion::Reintegro)) {
+            color = QStringLiteral("#b45309");
+        }
         tablaAuditoria->item(fila, 1)->setForeground(QBrush(QColor(color)));
     }
     filtrarAuditoria();
@@ -204,297 +537,14 @@ void VistaInventario::cargarAuditoria() {
 
 void VistaInventario::filtrarAuditoria() {
     if (!tablaAuditoria || !txtBuscarAuditoria) return;
+
     const QString filtro = txtBuscarAuditoria->text().trimmed();
     for (int fila = 0; fila < tablaAuditoria->rowCount(); ++fila) {
         bool coincide = filtro.isEmpty();
-        for (int col = 0; !coincide && col < tablaAuditoria->columnCount(); ++col)
-            coincide = tablaAuditoria->item(fila, col)->text().contains(filtro, Qt::CaseInsensitive);
+        for (int columna = 0; !coincide && columna < tablaAuditoria->columnCount(); ++columna) {
+            const auto* item = tablaAuditoria->item(fila, columna);
+            coincide = item && item->text().contains(filtro, Qt::CaseInsensitive);
+        }
         tablaAuditoria->setRowHidden(fila, !coincide);
     }
 }
-
-void VistaInventario::registrarAuditoria(const QString& accion, const ProductoItem& producto, const QString& detalle) {
-    if (!usuarioActual) return;
-    RegistroAuditoriaProducto registro;
-    registro.fechaHora = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-    registro.accion = accion;
-    registro.nombreProducto = QString("%1 (%2)").arg(producto.nombre, producto.id);
-    registro.detalleCambio = detalle;
-    registro.usuarioResponsable = QString("%1 (%2)").arg(usuarioActual->getNombreUsuario(), usuarioActual->rol());
-    GestorJSON gestor;
-    if (gestor.registrarCambioProducto(registro)) cargarAuditoria();
-}
-
-void VistaInventario::renderizarTabla() {
-    tablaProductos->setRowCount(0);
-
-    for (const auto& prod : listaProductos) {
-        int fila = tablaProductos->rowCount();
-        tablaProductos->insertRow(fila);
-
-        QTableWidgetItem* itemID = new QTableWidgetItem(prod.id);
-        QTableWidgetItem* itemNombre = new QTableWidgetItem(prod.nombre);
-        QTableWidgetItem* itemCat = new QTableWidgetItem(prod.categoria);
-        QTableWidgetItem* itemPrecio = new QTableWidgetItem(QString("₡ %1").arg(prod.precio, 0, 'f', 2));
-        QTableWidgetItem* itemStock = new QTableWidgetItem(QString::number(prod.stock));
-        QTableWidgetItem* itemEstado = new QTableWidgetItem();
-
-        if (prod.stock <= 0) {
-            itemEstado->setText("Agotado");
-            itemEstado->setForeground(QBrush(QColor("#b91c1c")));
-            itemStock->setForeground(QBrush(QColor("#b91c1c")));
-        } else if (prod.stock <= 5) {
-            itemEstado->setText("Stock Bajo");
-            itemEstado->setForeground(QBrush(QColor("#f59e0b")));
-            itemStock->setForeground(QBrush(QColor("#f59e0b")));
-        } else {
-            itemEstado->setText("Disponible");
-            itemEstado->setForeground(QBrush(QColor("#047857")));
-        }
-
-        tablaProductos->setItem(fila, 0, itemID);
-        tablaProductos->setItem(fila, 1, itemNombre);
-        tablaProductos->setItem(fila, 2, itemCat);
-        tablaProductos->setItem(fila, 3, itemPrecio);
-        tablaProductos->setItem(fila, 4, itemStock);
-        tablaProductos->setItem(fila, 5, itemEstado);
-    }
-}
-
-void VistaInventario::filtrarTabla() {
-    QString texto = txtBuscar->text().trimmed().toLower();
-    QString catFiltro = comboCategoriaFiltro->currentText();
-
-    for (int i = 0; i < tablaProductos->rowCount(); ++i) {
-        QString id = tablaProductos->item(i, 0)->text().toLower();
-        QString nombre = tablaProductos->item(i, 1)->text().toLower();
-        QString cat = tablaProductos->item(i, 2)->text();
-
-        bool coincideTexto = texto.isEmpty() || id.contains(texto) || nombre.contains(texto);
-        bool coincideCat = (catFiltro == "Todas las Categorías") || (cat == catFiltro);
-
-        tablaProductos->setRowHidden(i, !(coincideTexto && coincideCat));
-    }
-}
-
-void VistaInventario::abrirFormularioProducto(ProductoItem* prodExistente) {
-    bool esEdicion = (prodExistente != nullptr);
-
-    QDialog dlg(this);
-    dlg.setWindowTitle(esEdicion ? "Editar Producto" : "Nuevo Producto");
-    dlg.setFixedSize(400, 480);
-    dlg.setStyleSheet("QDialog { background-color: #ffffff; } QLabel { color: #111827; font-size: 12px; font-weight: 500; }");
-
-    QVBoxLayout* layoutDlg = new QVBoxLayout(&dlg);
-    layoutDlg->setContentsMargins(20, 20, 20, 20);
-    layoutDlg->setSpacing(10);
-
-    QLabel* lblTitulo = new QLabel(esEdicion ? "Modificar Datos de Producto" : "Registrar Nuevo Producto", &dlg);
-    lblTitulo->setStyleSheet("font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 5px;");
-    layoutDlg->addWidget(lblTitulo);
-
-    QLineEdit* inputID = new QLineEdit(&dlg);
-    inputID->setPlaceholderText("Código ID (ej: S006)");
-    if (esEdicion) {
-        inputID->setText(prodExistente->id);
-        inputID->setEnabled(false);
-    }
-
-    QLineEdit* inputNombre = new QLineEdit(&dlg);
-    inputNombre->setPlaceholderText("Nombre del producto");
-    if (esEdicion) inputNombre->setText(prodExistente->nombre);
-
-    QLineEdit* inputDesc = new QLineEdit(&dlg);
-    inputDesc->setPlaceholderText("Descripción breve");
-    if (esEdicion) inputDesc->setText(prodExistente->descripcion);
-
-    QComboBox* comboCat = new QComboBox(&dlg);
-    comboCat->addItems({"Snacks", "Bebidas", "Comida", "Útiles", "Higiene"});
-    if (esEdicion) comboCat->setCurrentText(prodExistente->categoria);
-
-    QDoubleSpinBox* spinPrecio = new QDoubleSpinBox(&dlg);
-    spinPrecio->setRange(0.0, 100000.0);
-    spinPrecio->setDecimals(2);
-    spinPrecio->setPrefix("₡ ");
-    spinPrecio->setMinimumHeight(35);
-    if (esEdicion) spinPrecio->setValue(prodExistente->precio);
-
-    QSpinBox* spinStock = new QSpinBox(&dlg);
-    spinStock->setRange(0, 10000);
-    spinStock->setMinimumHeight(35);
-    if (esEdicion) spinStock->setValue(prodExistente->stock);
-
-    QString estiloCampos =
-        "QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox { "
-        "background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 6px; "
-        "padding: 6px 10px; font-size: 13px; color: #111827; min-height: 25px; } "
-        "QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus { border: 1px solid #047857; }";
-
-    inputID->setStyleSheet(estiloCampos);
-    inputNombre->setStyleSheet(estiloCampos);
-    inputDesc->setStyleSheet(estiloCampos);
-    comboCat->setStyleSheet(estiloCampos);
-    spinPrecio->setStyleSheet(estiloCampos);
-    spinStock->setStyleSheet(estiloCampos);
-
-    layoutDlg->addWidget(new QLabel("Código ID:", &dlg));
-    layoutDlg->addWidget(inputID);
-    layoutDlg->addWidget(new QLabel("Nombre:", &dlg));
-    layoutDlg->addWidget(inputNombre);
-    layoutDlg->addWidget(new QLabel("Descripción:", &dlg));
-    layoutDlg->addWidget(inputDesc);
-    layoutDlg->addWidget(new QLabel("Categoría:", &dlg));
-    layoutDlg->addWidget(comboCat);
-
-    QHBoxLayout* layoutValores = new QHBoxLayout();
-    layoutValores->setSpacing(10);
-
-    QVBoxLayout* colPrec = new QVBoxLayout();
-    colPrec->addWidget(new QLabel("Precio:", &dlg));
-    colPrec->addWidget(spinPrecio);
-
-    QVBoxLayout* colStock = new QVBoxLayout();
-    colStock->addWidget(new QLabel("Stock:", &dlg));
-    colStock->addWidget(spinStock);
-
-    layoutValores->addLayout(colPrec);
-    layoutValores->addLayout(colStock);
-    layoutDlg->addLayout(layoutValores);
-
-    QPushButton* btnGuardar = new QPushButton("Guardar Producto", &dlg);
-    btnGuardar->setMinimumHeight(40);
-    btnGuardar->setStyleSheet(
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border: none; border-radius: 8px; font-size: 14px; }"
-        "QPushButton:hover { background-color: #065f46; }"
-    );
-
-    connect(btnGuardar, &QPushButton::clicked, [&]() {
-        if (inputID->text().trimmed().isEmpty() || inputNombre->text().trimmed().isEmpty()) {
-            QMessageBox msgBox(&dlg);
-            msgBox.setWindowTitle("Campos Vacíos");
-            msgBox.setText("El código ID y el Nombre son obligatorios.");
-            msgBox.setIcon(QMessageBox::Warning);
-            msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-            msgBox.exec();
-            return;
-        }
-
-        ProductoItem p;
-        p.id = inputID->text().trimmed();
-        p.nombre = inputNombre->text().trimmed();
-        p.descripcion = inputDesc->text().trimmed();
-        p.categoria = comboCat->currentText();
-        p.precio = spinPrecio->value();
-        p.stock = spinStock->value();
-
-        guardarProductoEnJSON(p, esEdicion);
-        dlg.accept();
-    });
-
-    layoutDlg->addSpacing(10);
-    layoutDlg->addWidget(btnGuardar);
-
-    dlg.exec();
-}
-
-void VistaInventario::guardarProductoEnJSON(const ProductoItem& prod, bool esEdicion) {
-    ProductoItem productoAnterior;
-    if (esEdicion) {
-        for (auto& p : listaProductos) {
-            if (p.id == prod.id) {
-                productoAnterior = p;
-                p = prod;
-                break;
-            }
-        }
-    } else {
-        for (const auto& p : listaProductos) {
-            if (p.id == prod.id) {
-                QMessageBox msgBox(this);
-                msgBox.setWindowTitle("ID Duplicado");
-                msgBox.setText("Ya existe un producto registrado con este código ID.");
-                msgBox.setIcon(QMessageBox::Warning);
-                msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-                msgBox.exec();
-                return;
-            }
-        }
-        listaProductos.push_back(prod);
-    }
-
-    GestorJSON gestor;
-    if (gestor.guardarProductos(listaProductos)) {
-        QString detalle;
-        if (esEdicion) {
-            QStringList cambios;
-            if (productoAnterior.precio != prod.precio)
-                cambios << QString("Precio: ₡%1 -> ₡%2").arg(productoAnterior.precio, 0, 'f', 2).arg(prod.precio, 0, 'f', 2);
-            if (productoAnterior.stock != prod.stock)
-                cambios << QString("Stock: %1 -> %2").arg(productoAnterior.stock).arg(prod.stock);
-            if (productoAnterior.nombre != prod.nombre) cambios << QString("Nombre: %1 -> %2").arg(productoAnterior.nombre, prod.nombre);
-            if (productoAnterior.descripcion != prod.descripcion) cambios << QString("Descripción actualizada");
-            if (productoAnterior.categoria != prod.categoria) cambios << QString("Categoría: %1 -> %2").arg(productoAnterior.categoria, prod.categoria);
-            detalle = cambios.isEmpty() ? "Producto guardado sin cambios en sus campos" : cambios.join(" | ");
-        } else {
-            detalle = "Nuevo producto registrado";
-        }
-        registrarAuditoria(esEdicion ? "MODIFICADO" : "AÑADIDO", prod, detalle);
-        renderizarTabla();
-
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Éxito");
-        msgBox.setText("El inventario se ha actualizado correctamente.");
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setStyleSheet(
-            "QMessageBox { background-color: #ffffff; } "
-            "QLabel { color: #111827; font-size: 13px; font-weight: 500; } "
-            "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }"
-            "QPushButton:hover { background-color: #065f46; }"
-        );
-        msgBox.exec();
-    }
-}
-
-void VistaInventario::eliminarProductoSeleccionado() {
-    int fila = tablaProductos->currentRow();
-    if (fila < 0) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Selección requerida");
-        msgBox.setText("Seleccione un producto de la tabla para eliminar.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
-        return;
-    }
-
-    QString idProd = tablaProductos->item(fila, 0)->text();
-    QString nombreProd = tablaProductos->item(fila, 1)->text();
-
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("Confirmar eliminación");
-    msgBox.setText(QString("¿Está seguro de que desea eliminar '%1' del inventario?").arg(nombreProd));
-    msgBox.setIcon(QMessageBox::Question);
-    QPushButton* btnSi = msgBox.addButton("Sí", QMessageBox::YesRole);
-    msgBox.addButton("No", QMessageBox::NoRole);
-    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #f3f4f6; color: #111827; font-weight: bold; border-radius: 6px; padding: 6px 12px; font-size: 12px; }");
-    msgBox.exec();
-
-    if (msgBox.clickedButton() == btnSi) {
-        for (auto it = listaProductos.begin(); it != listaProductos.end(); ++it) {
-            if (it->id == idProd) {
-                listaProductos.erase(it);
-                break;
-            }
-        }
-
-        GestorJSON gestor;
-        if (gestor.guardarProductos(listaProductos)) {
-            ProductoItem eliminado;
-            eliminado.id = idProd;
-            eliminado.nombre = nombreProd;
-            registrarAuditoria("ELIMINADO", eliminado, "Producto eliminado del inventario");
-            renderizarTabla();
-        }
-    }
-}
-

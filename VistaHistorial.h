@@ -1,50 +1,56 @@
 #ifndef VISTAHISTORIAL_H
 #define VISTAHISTORIAL_H
 
-#include <QWidget>
-#include <QTableWidget>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QLabel>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QMessageBox>
-#include <QDialog>
-#include <QTextBrowser>
 #include <QComboBox>
 #include <QDateEdit>
-#include <QFileDialog>
-#include <QTextStream>
-#include <QDate>
+#include <QDialog>
+#include <QFrame>
+#include <QHeaderView>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QTextBrowser>
+#include <QVBoxLayout>
+#include <QWidget>
+#include <memory>
 #include <vector>
 #include "ModelosDatos.h"
-#include "GestorJSON.h"
-#include "IGeneradorTicket.h"
+#include "Usuario.h"
 
 class VistaHistorial : public QWidget {
     Q_OBJECT
 
 private:
-    QLineEdit* txtBuscar;
-    QComboBox* comboRangoFecha;
-    QDateEdit* dateInicio;
-    QDateEdit* dateFin;
-    QTableWidget* tablaVentas;
-    QPushButton* btnVerTicket;
-    QPushButton* btnDescargarPDF;
-    QPushButton* btnExportarCSV;
-    QPushButton* btnAnularVenta;
+    QLineEdit* txtBuscar = nullptr;
+    QComboBox* comboRangoFecha = nullptr;
+    QDateEdit* dateInicio = nullptr;
+    QDateEdit* dateFin = nullptr;
+    QTableWidget* tablaVentas = nullptr;
+    QPushButton* btnVerTicket = nullptr;
+    QPushButton* btnDescargarPDF = nullptr;
+    QPushButton* btnExportarCSV = nullptr;
+    QPushButton* btnAnularVenta = nullptr;
 
-    QLabel* lblTotalVendido;
-    QLabel* lblTotalIVA;
-    QLabel* lblCantidadVentas;
+    QLabel* lblTotalVendido = nullptr;
+    QLabel* lblTotalIVA = nullptr;
+    QLabel* lblCantidadVentas = nullptr;
 
     std::vector<DatosVentaTicket> listaVentas;
+    std::shared_ptr<Usuario> usuarioActual;
+
+    bool esAdministrador() const;
 
 public:
     explicit VistaHistorial(QWidget* parent = nullptr);
+    VistaHistorial(std::shared_ptr<Usuario> usuario, QWidget* parent);
     void actualizar();
+
+signals:
+    void historialActualizado();
+    void ventaAnulada(const QString& idVenta);
 
 protected:
     void showEvent(QShowEvent* event) override;

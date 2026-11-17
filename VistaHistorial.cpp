@@ -1,13 +1,31 @@
 #include "VistaHistorial.h"
-#include <algorithm>
-#include <QDir>
-#include <QStandardPaths>
-#include <QShowEvent>
-#include "TicketPdf.h"
 
-VistaHistorial::VistaHistorial(QWidget* parent) : QWidget(parent) {
+#include "Estilos.h"
+#include "ServicioReportes.h"
+#include "ServicioTickets.h"
+#include "ServicioVentas.h"
+
+#include <QBrush>
+#include <QColor>
+#include <QDate>
+#include <QFileDialog>
+#include <QShowEvent>
+#include <QStandardPaths>
+#include <algorithm>
+#include <utility>
+
+VistaHistorial::VistaHistorial(QWidget* parent)
+    : VistaHistorial(nullptr, parent) {}
+
+VistaHistorial::VistaHistorial(std::shared_ptr<Usuario> usuario, QWidget* parent)
+    : QWidget(parent), usuarioActual(std::move(usuario)) {
     configurarInterfaz();
     cargarDatos();
+}
+
+bool VistaHistorial::esAdministrador() const {
+    return usuarioActual && usuarioActual->isActivo()
+           && usuarioActual->rol() == QStringLiteral("Administrador");
 }
 
 void VistaHistorial::showEvent(QShowEvent* event) {
@@ -21,111 +39,111 @@ void VistaHistorial::actualizar() {
 
 void VistaHistorial::configurarInterfaz() {
     QVBoxLayout* layoutPrincipal = new QVBoxLayout(this);
-    layoutPrincipal->setContentsMargins(20, 20, 20, 20);
-    layoutPrincipal->setSpacing(15);
-    this->setStyleSheet("background-color: #f8f9fa;");
+    layoutPrincipal->setContentsMargins(16, 16, 16, 16);
+    layoutPrincipal->setSpacing(12);
+    setStyleSheet(QStringLiteral("background-color: #f8f9fa;"));
 
-    // --- CARDS SUPERIORES ---
     QHBoxLayout* layoutCards = new QHBoxLayout();
     layoutCards->setSpacing(15);
 
-    auto crearCard = [this](const QString& titulo, QLabel*& lblValor, const QString& colorTexto) {
+    auto crearCard = [this](const QString& titulo, QLabel*& valor, const QString& colorTexto) {
         QFrame* card = new QFrame(this);
-        card->setStyleSheet("QFrame { background-color: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb; }");
+        card->setStyleSheet(
+            QStringLiteral("QFrame { background-color: #ffffff; border-radius: 12px;"
+                           " border: 1px solid #e5e7eb; }"));
         QVBoxLayout* layoutCard = new QVBoxLayout(card);
         layoutCard->setContentsMargins(15, 12, 15, 12);
 
-        QLabel* lblTitle = new QLabel(titulo, card);
-        lblTitle->setStyleSheet("color: #6b7280; font-size: 11px; font-weight: bold; border: none;");
+        QLabel* etiqueta = new QLabel(titulo, card);
+        etiqueta->setStyleSheet(
+            QStringLiteral("color: #6b7280; font-size: 11px; font-weight: bold;"
+                           " border: none;"));
 
-        lblValor = new QLabel("₡ 0.00", card);
-        lblValor->setStyleSheet(QString("color: %1; font-size: 18px; font-weight: bold; border: none;").arg(colorTexto));
+        valor = new QLabel(QStringLiteral("₡ 0.00"), card);
+        valor->setStyleSheet(
+            QStringLiteral("color: %1; font-size: 18px; font-weight: bold;"
+                           " border: none;").arg(colorTexto));
 
-        layoutCard->addWidget(lblTitle);
-        layoutCard->addWidget(lblValor);
+        layoutCard->addWidget(etiqueta);
+        layoutCard->addWidget(valor);
         return card;
-        };
+    };
 
-    layoutCards->addWidget(crearCard("TOTAL VENTAS", lblTotalVendido, "#047857"));
-    layoutCards->addWidget(crearCard("IVA RECAUDADO (13%)", lblTotalIVA, "#1d4ed8"));
-    layoutCards->addWidget(crearCard("TRANSACCIONES", lblCantidadVentas, "#111827"));
-
+    layoutCards->addWidget(crearCard(QStringLiteral("TOTAL VENTAS"), lblTotalVendido,
+                                     QStringLiteral("#047857")));
+    layoutCards->addWidget(crearCard(QStringLiteral("IVA RECAUDADO (13%)"), lblTotalIVA,
+                                     QStringLiteral("#1d4ed8")));
+    layoutCards->addWidget(crearCard(QStringLiteral("TRANSACCIONES"), lblCantidadVentas,
+                                     QStringLiteral("#111827")));
     layoutPrincipal->addLayout(layoutCards);
 
-    // --- BARRA DE FILTROS Y CONTROLES ---
     QHBoxLayout* layoutTop = new QHBoxLayout();
-    layoutTop->setSpacing(10);
+    layoutTop->setSpacing(8);
 
     txtBuscar = new QLineEdit(this);
-    txtBuscar->setPlaceholderText("Buscar...");
-    txtBuscar->setStyleSheet(
-        "QLineEdit { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; "
-        "padding: 8px 12px; font-size: 13px; color: #111827; }"
-        "QLineEdit:focus { border: 1px solid #047857; }"
-    );
+    txtBuscar->setPlaceholderText(QStringLiteral("Buscar por ID o usuario..."));
+    txtBuscar->setStyleSheet(Estilos::estiloEntrada());
     connect(txtBuscar, &QLineEdit::textChanged, this, &VistaHistorial::filtrarTabla);
 
     comboRangoFecha = new QComboBox(this);
-    comboRangoFecha->addItems({ "Todas las Fechas", "Hoy", "Últimos 7 Días", "Este Mes", "Rango Personalizado" });
-    comboRangoFecha->setStyleSheet(
-        "QComboBox { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; "
-        "padding: 6px 10px; font-size: 12px; color: #111827; }"
-    );
+    comboRangoFecha->addItems({
+        QStringLiteral("Todas las Fechas"), QStringLiteral("Hoy"),
+        QStringLiteral("Últimos 7 Días"), QStringLiteral("Este Mes"),
+        QStringLiteral("Rango Personalizado")
+    });
+    comboRangoFecha->setStyleSheet(Estilos::estiloEntrada());
 
     dateInicio = new QDateEdit(QDate::currentDate(), this);
     dateInicio->setCalendarPopup(true);
-    dateInicio->setDisplayFormat("yyyy-MM-dd");
+    dateInicio->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
     dateInicio->setVisible(false);
-    dateInicio->setStyleSheet("QDateEdit { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px; font-size: 12px; color: #111827; }");
+    dateInicio->setStyleSheet(Estilos::estiloEntrada());
 
     dateFin = new QDateEdit(QDate::currentDate(), this);
     dateFin->setCalendarPopup(true);
-    dateFin->setDisplayFormat("yyyy-MM-dd");
+    dateFin->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
     dateFin->setVisible(false);
-    dateFin->setStyleSheet("QDateEdit { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px; font-size: 12px; color: #111827; }");
+    dateFin->setStyleSheet(Estilos::estiloEntrada());
 
-    connect(comboRangoFecha, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](int index) {
-        bool esPersonalizado = (comboRangoFecha->itemText(index) == "Rango Personalizado");
-        dateInicio->setVisible(esPersonalizado);
-        dateFin->setVisible(esPersonalizado);
+    connect(comboRangoFecha, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+                const bool personalizado =
+                    comboRangoFecha->itemText(index) == QStringLiteral("Rango Personalizado");
+                dateInicio->setVisible(personalizado);
+                dateFin->setVisible(personalizado);
+                filtrarTabla();
+            });
+    connect(dateInicio, &QDateEdit::dateChanged, this, [this](const QDate& fecha) {
+        dateFin->setMinimumDate(fecha);
         filtrarTabla();
-        });
+    });
+    connect(dateFin, &QDateEdit::dateChanged, this, [this](const QDate& fecha) {
+        dateInicio->setMaximumDate(fecha);
+        filtrarTabla();
+    });
 
-    connect(dateInicio, &QDateEdit::dateChanged, this, &VistaHistorial::filtrarTabla);
-    connect(dateFin, &QDateEdit::dateChanged, this, &VistaHistorial::filtrarTabla);
+    btnVerTicket = new QPushButton(QStringLiteral("Ver Ticket"), this);
+    btnVerTicket->setStyleSheet(Estilos::estiloBotonPrincipal());
+    connect(btnVerTicket, &QPushButton::clicked,
+            this, &VistaHistorial::mostrarTicketSeleccionado);
 
-    btnVerTicket = new QPushButton(" Ver Ticket", this);
-    btnVerTicket->setStyleSheet(
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; }"
-        "QPushButton:hover { background-color: #065f46; }"
-    );
-    connect(btnVerTicket, &QPushButton::clicked, this, &VistaHistorial::mostrarTicketSeleccionado);
-
-    btnDescargarPDF = new QPushButton("Descargar PDF", this);
-    btnDescargarPDF->setStyleSheet(
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; }"
-        "QPushButton:hover { background-color: #065f46; }"
-    );
+    btnDescargarPDF = new QPushButton(QStringLiteral("Descargar PDF"), this);
+    btnDescargarPDF->setStyleSheet(Estilos::estiloBotonPrincipal());
     connect(btnDescargarPDF, &QPushButton::clicked,
-        this, &VistaHistorial::descargarTicketPDF);
+            this, &VistaHistorial::descargarTicketPDF);
 
-    btnExportarCSV = new QPushButton(" CSV", this);
-    btnExportarCSV->setStyleSheet(
-        "QPushButton { background-color: #1d4ed8; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; }"
-        "QPushButton:hover { background-color: #1e40af; }"
-    );
+    btnExportarCSV = new QPushButton(QStringLiteral("Exportar CSV"), this);
+    btnExportarCSV->setStyleSheet(Estilos::estiloBotonSecundario());
     connect(btnExportarCSV, &QPushButton::clicked, this, &VistaHistorial::exportarCSV);
 
-    btnAnularVenta = new QPushButton(" Anular Venta", this);
-    btnAnularVenta->setStyleSheet(
-        "QPushButton { background-color: #b91c1c; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; }"
-        "QPushButton:hover { background-color: #991b1b; }"
-    );
-    connect(btnAnularVenta, &QPushButton::clicked, this, &VistaHistorial::anularVentaSeleccionada);
+    btnAnularVenta = new QPushButton(QStringLiteral("Anular Venta"), this);
+    btnAnularVenta->setStyleSheet(Estilos::estiloBotonPeligro());
+    connect(btnAnularVenta, &QPushButton::clicked,
+            this, &VistaHistorial::anularVentaSeleccionada);
+    if (!esAdministrador()) {
+        btnAnularVenta->setVisible(false);
+        btnAnularVenta->setEnabled(false);
+    }
 
     layoutTop->addWidget(txtBuscar, 2);
     layoutTop->addWidget(comboRangoFecha, 2);
@@ -135,325 +153,297 @@ void VistaHistorial::configurarInterfaz() {
     layoutTop->addWidget(btnDescargarPDF, 1);
     layoutTop->addWidget(btnExportarCSV, 1);
     layoutTop->addWidget(btnAnularVenta, 1);
-
     layoutPrincipal->addLayout(layoutTop);
 
-    // --- TABLA HISTORIAL ---
     tablaVentas = new QTableWidget(this);
-    tablaVentas->setColumnCount(6);
-    tablaVentas->setHorizontalHeaderLabels({ "ID Venta", "Fecha y Hora", "Usuario", "Subtotal (₡)", "IVA (₡)", "Total (₡)" });
+    tablaVentas->setColumnCount(7);
+    tablaVentas->setHorizontalHeaderLabels({
+        QStringLiteral("ID Venta"), QStringLiteral("Fecha y Hora"),
+        QStringLiteral("Usuario"), QStringLiteral("Subtotal (₡)"),
+        QStringLiteral("IVA (₡)"), QStringLiteral("Total (₡)"),
+        QStringLiteral("Estado")
+    });
     tablaVentas->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     tablaVentas->verticalHeader()->setVisible(false);
     tablaVentas->setSelectionBehavior(QAbstractItemView::SelectRows);
     tablaVentas->setSelectionMode(QAbstractItemView::SingleSelection);
     tablaVentas->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tablaVentas->setStyleSheet(
-        "QTableWidget { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; gridline-color: #f3f4f6; }"
-        "QHeaderView::section { background-color: #f9fafb; color: #374151; font-weight: bold; border: none; padding: 10px; font-size: 12px; }"
-        "QTableWidget::item { padding: 10px 8px; font-size: 13px; color: #111827; }"
-        "QTableWidget::item:selected { background-color: #e0f2fe; color: #0369a1; }"
-    );
-
-    layoutPrincipal->addWidget(tablaVentas);
+    tablaVentas->setAlternatingRowColors(true);
+    tablaVentas->setStyleSheet(Estilos::estiloTabla());
+    layoutPrincipal->addWidget(tablaVentas, 1);
 }
 
 void VistaHistorial::cargarDatos() {
-    GestorJSON gestor;
-    listaVentas = gestor.cargarVentas();
+    ServicioVentas servicio;
+    QString error;
+    listaVentas = servicio.listar(&error);
+    if (!error.isEmpty()) {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo leer el historial"), error);
+        listaVentas.clear();
+    }
     renderizarTabla();
+    emit historialActualizado();
 }
 
 void VistaHistorial::renderizarTabla() {
+    if (!tablaVentas) return;
     tablaVentas->setRowCount(0);
 
     for (const auto& venta : listaVentas) {
-        int fila = tablaVentas->rowCount();
+        const int fila = tablaVentas->rowCount();
         tablaVentas->insertRow(fila);
 
-        QTableWidgetItem* itemID = new QTableWidgetItem(venta.idVenta);
-        QTableWidgetItem* itemFecha = new QTableWidgetItem(venta.fechaHora.toString("yyyy-MM-dd hh:mm AP"));
-        QTableWidgetItem* itemUsuario = new QTableWidgetItem(venta.usuario);
-        QTableWidgetItem* itemSub = new QTableWidgetItem(QString("₡ %1").arg(venta.subtotal, 0, 'f', 2));
-        QTableWidgetItem* itemIVA = new QTableWidgetItem(QString("₡ %1").arg(venta.iva, 0, 'f', 2));
-        QTableWidgetItem* itemTotal = new QTableWidgetItem(QString("₡ %1").arg(venta.total, 0, 'f', 2));
+        auto* itemID = new QTableWidgetItem(venta.getIdVenta());
+        auto* itemFecha = new QTableWidgetItem(
+            venta.getFechaHora().isValid()
+                ? venta.getFechaHora().toString(QStringLiteral("yyyy-MM-dd hh:mm AP"))
+                : QStringLiteral("—"));
+        auto* itemUsuario = new QTableWidgetItem(venta.getUsuario());
+        auto* itemSubtotal = new QTableWidgetItem(
+            QStringLiteral("₡ %1").arg(venta.getSubtotal(), 0, 'f', 2));
+        auto* itemIVA = new QTableWidgetItem(
+            QStringLiteral("₡ %1").arg(venta.getIva(), 0, 'f', 2));
+        auto* itemTotal = new QTableWidgetItem(
+            QStringLiteral("₡ %1").arg(venta.getTotal(), 0, 'f', 2));
+        auto* itemEstado = new QTableWidgetItem(
+            venta.isAnulada() ? QStringLiteral("Anulada") : QStringLiteral("Vigente"));
 
-        itemTotal->setForeground(QBrush(QColor("#047857")));
+        itemSubtotal->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        itemIVA->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        itemTotal->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        if (venta.isAnulada()) {
+            const QString detalle = QStringLiteral("Anulada por %1 el %2")
+                                        .arg(venta.getUsuarioAnulacion().isEmpty()
+                                                 ? QStringLiteral("—")
+                                                 : venta.getUsuarioAnulacion(),
+                                             venta.getFechaAnulacion().isValid()
+                                                 ? venta.getFechaAnulacion().toString(
+                                                       QStringLiteral("yyyy-MM-dd hh:mm AP"))
+                                                 : QStringLiteral("—"));
+            itemEstado->setForeground(QBrush(QColor(QStringLiteral("#b91c1c"))));
+            itemEstado->setToolTip(detalle);
+            itemTotal->setForeground(QBrush(QColor(QStringLiteral("#6b7280"))));
+            itemID->setForeground(QBrush(QColor(QStringLiteral("#6b7280"))));
+        } else {
+            itemEstado->setForeground(QBrush(QColor(QStringLiteral("#047857"))));
+            itemTotal->setForeground(QBrush(QColor(QStringLiteral("#047857"))));
+        }
 
         tablaVentas->setItem(fila, 0, itemID);
         tablaVentas->setItem(fila, 1, itemFecha);
         tablaVentas->setItem(fila, 2, itemUsuario);
-        tablaVentas->setItem(fila, 3, itemSub);
+        tablaVentas->setItem(fila, 3, itemSubtotal);
         tablaVentas->setItem(fila, 4, itemIVA);
         tablaVentas->setItem(fila, 5, itemTotal);
+        tablaVentas->setItem(fila, 6, itemEstado);
     }
 
     filtrarTabla();
 }
 
 void VistaHistorial::filtrarTabla() {
-    QString texto = txtBuscar->text().trimmed().toLower();
-    QString opcionFecha = comboRangoFecha->currentText();
-    QDate hoy = QDate::currentDate();
+    if (!tablaVentas || !txtBuscar || !comboRangoFecha) return;
 
-    double acumuladoVentasVisibles = 0.0;
-    double acumuladoIVAVisibles = 0.0;
-    int contadorVisibles = 0;
+    const QString texto = txtBuscar->text().trimmed().toLower();
+    const QString opcionFecha = comboRangoFecha->currentText();
+    const QDate hoy = QDate::currentDate();
 
-    for (int i = 0; i < tablaVentas->rowCount(); ++i) {
-        QString id = tablaVentas->item(i, 0)->text().toLower();
-        QString usuario = tablaVentas->item(i, 2)->text().toLower();
-        QDateTime fechaVenta = listaVentas[i].fechaHora;
-        QDate fechaSolo = fechaVenta.date();
+    double totalVisible = 0.0;
+    double ivaVisible = 0.0;
+    int transaccionesVisibles = 0;
+
+    for (int fila = 0; fila < tablaVentas->rowCount(); ++fila) {
+        if (fila >= static_cast<int>(listaVentas.size())) break;
+
+        const auto* itemID = tablaVentas->item(fila, 0);
+        const auto* itemUsuario = tablaVentas->item(fila, 2);
+        if (!itemID || !itemUsuario) continue;
+
+        const QString id = itemID->text().toLower();
+        const QString usuario = itemUsuario->text().toLower();
+        const QDate fecha = listaVentas[fila].getFechaHora().date();
 
         bool coincideTexto = texto.isEmpty() || id.contains(texto) || usuario.contains(texto);
         bool coincideFecha = true;
 
-        if (opcionFecha == "Hoy") {
-            coincideFecha = (fechaSolo == hoy);
-        }
-        else if (opcionFecha == "Últimos 7 Días") {
-            coincideFecha = (fechaSolo >= hoy.addDays(-7) && fechaSolo <= hoy);
-        }
-        else if (opcionFecha == "Este Mes") {
-            coincideFecha = (fechaSolo.year() == hoy.year() && fechaSolo.month() == hoy.month());
-        }
-        else if (opcionFecha == "Rango Personalizado") {
-            coincideFecha = (fechaSolo >= dateInicio->date() && fechaSolo <= dateFin->date());
+        if (opcionFecha == QStringLiteral("Hoy")) {
+            coincideFecha = (fecha == hoy);
+        } else if (opcionFecha == QStringLiteral("Últimos 7 Días")) {
+            coincideFecha = (fecha >= hoy.addDays(-7) && fecha <= hoy);
+        } else if (opcionFecha == QStringLiteral("Este Mes")) {
+            coincideFecha = (fecha.year() == hoy.year() && fecha.month() == hoy.month());
+        } else if (opcionFecha == QStringLiteral("Rango Personalizado")) {
+            coincideFecha = (fecha >= dateInicio->date() && fecha <= dateFin->date());
         }
 
-        bool mostrar = coincideTexto && coincideFecha;
-        tablaVentas->setRowHidden(i, !mostrar);
+        const bool mostrar = coincideTexto && coincideFecha;
+        tablaVentas->setRowHidden(fila, !mostrar);
 
         if (mostrar) {
-            acumuladoVentasVisibles += listaVentas[i].total;
-            acumuladoIVAVisibles += listaVentas[i].iva;
-            contadorVisibles++;
+            ++transaccionesVisibles;
+            if (!listaVentas[fila].isAnulada()) {
+                totalVisible += listaVentas[fila].getTotal();
+                ivaVisible += listaVentas[fila].getIva();
+            }
         }
     }
 
-    lblTotalVendido->setText(QString("₡ %1").arg(acumuladoVentasVisibles, 0, 'f', 2));
-    lblTotalIVA->setText(QString("₡ %1").arg(acumuladoIVAVisibles, 0, 'f', 2));
-    lblCantidadVentas->setText(QString::number(contadorVisibles));
+    lblTotalVendido->setText(QStringLiteral("₡ %1").arg(totalVisible, 0, 'f', 2));
+    lblTotalIVA->setText(QStringLiteral("₡ %1").arg(ivaVisible, 0, 'f', 2));
+    lblCantidadVentas->setText(QString::number(transaccionesVisibles));
 }
 
 void VistaHistorial::mostrarTicketSeleccionado() {
-    int fila = tablaVentas->currentRow();
-    if (fila < 0) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Selección Requerida");
-        msgBox.setText("Seleccione una venta de la tabla para visualizar su ticket.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
+    const int fila = tablaVentas->currentRow();
+    if (fila < 0 || fila >= static_cast<int>(listaVentas.size())) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione una venta de la tabla para visualizar su ticket."));
         return;
     }
 
-    QString idVenta = tablaVentas->item(fila, 0)->text();
+    const auto& venta = listaVentas[fila];
+    ServicioTickets tickets;
+    QDialog dialogo(this);
+    dialogo.setWindowTitle(QStringLiteral("Ticket Venta %1").arg(venta.getIdVenta()));
+    dialogo.setMinimumSize(340, 480);
+    dialogo.resize(400, 620);
+    dialogo.setStyleSheet(QStringLiteral("QDialog { background-color: #ffffff; }"));
 
-    for (const auto& v : listaVentas) {
-        if (v.idVenta == idVenta) {
-            GeneradorTicketHTML generador;
-            QString contenidoHTML = generador.generarContenido(v);
+    QVBoxLayout* layout = new QVBoxLayout(&dialogo);
+    layout->setContentsMargins(15, 15, 15, 15);
 
-            QDialog dlgTicket(this);
-            dlgTicket.setWindowTitle(QString("Ticket Venta %1").arg(idVenta));
-            dlgTicket.setFixedSize(360, 540);
-            dlgTicket.setStyleSheet("background-color: #ffffff;");
+    QTextBrowser* visor = new QTextBrowser(&dialogo);
+    visor->setHtml(tickets.generarContenido(venta, FormatoTicket::Html));
+    visor->setStyleSheet(
+        QStringLiteral("QTextBrowser { border: 1px solid #e5e7eb; border-radius: 8px;"
+                       " background-color: #ffffff; color: #111827; padding: 10px; }"));
 
-            QVBoxLayout* layoutDlg = new QVBoxLayout(&dlgTicket);
-            layoutDlg->setContentsMargins(15, 15, 15, 15);
+    QPushButton* btnCerrar = new QPushButton(QStringLiteral("Cerrar Visualización"), &dialogo);
+    btnCerrar->setStyleSheet(Estilos::estiloBotonPrincipal());
+    connect(btnCerrar, &QPushButton::clicked, &dialogo, &QDialog::accept);
 
-            QTextBrowser* textViewer = new QTextBrowser(&dlgTicket);
-            textViewer->setHtml(contenidoHTML);
-            textViewer->setStyleSheet("QTextBrowser { border: 1px solid #e5e7eb; border-radius: 8px; background-color: #ffffff; color: #111827; padding: 10px; }");
-
-            QPushButton* btnCerrar = new QPushButton("Cerrar Visualización", &dlgTicket);
-            btnCerrar->setStyleSheet("QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border: none; border-radius: 8px; padding: 10px; font-size: 13px; }"
-                "QPushButton:hover { background-color: #065f46; }");
-            connect(btnCerrar, &QPushButton::clicked, &dlgTicket, &QDialog::accept);
-
-            layoutDlg->addWidget(textViewer);
-            layoutDlg->addSpacing(10);
-            layoutDlg->addWidget(btnCerrar);
-
-            dlgTicket.exec();
-            break;
-        }
-    }
+    layout->addWidget(visor, 1);
+    layout->addWidget(btnCerrar);
+    dialogo.exec();
 }
 
 void VistaHistorial::descargarTicketPDF() {
     const int fila = tablaVentas->currentRow();
-    if (fila < 0) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Selección requerida");
-        msgBox.setText("Seleccione una venta para descargar su ticket en PDF.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet(
-            "QMessageBox { background-color: #ffffff; }"
-            "QLabel { color: #111827; font-size: 13px; }"
-            "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-            "border-radius: 6px; padding: 6px 15px; border: none; }"
-        );
-        msgBox.exec();
+    if (fila < 0 || fila >= static_cast<int>(listaVentas.size())) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione una venta para descargar su ticket en PDF."));
         return;
     }
 
-    const QString idVenta = tablaVentas->item(fila, 0)->text();
-    const auto venta = std::find_if(listaVentas.begin(), listaVentas.end(),
-        [&idVenta](const DatosVentaTicket& item) { return item.idVenta == idVenta; });
-    if (venta == listaVentas.end()) return;
-
-    QString carpetaDescargas = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    if (carpetaDescargas.isEmpty() || !QDir(carpetaDescargas).exists()) {
-        carpetaDescargas = QDir::homePath();
-    }
-    const QString nombreSugerido = QDir(carpetaDescargas).filePath(
-        QString("Ticket_%1.pdf").arg(idVenta));
-
-    QString rutaPDF = QFileDialog::getSaveFileName(
-        this, "Guardar ticket en PDF", nombreSugerido, "Documento PDF (*.pdf)");
-    if (rutaPDF.isEmpty()) return;
-    if (!rutaPDF.endsWith(".pdf", Qt::CaseInsensitive)) rutaPDF += ".pdf";
-
-    if (!generarTicketPDF(*venta, rutaPDF)) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Error al guardar");
-        msgBox.setText("No se pudo crear el archivo PDF.");
-        msgBox.setIcon(QMessageBox::Critical);
-        msgBox.setStyleSheet(
-            "QMessageBox { background-color: #ffffff; }"
-            "QLabel { color: #111827; font-size: 13px; }"
-            "QPushButton { background-color: #b91c1c; color: #ffffff; font-weight: bold; "
-            "border-radius: 6px; padding: 6px 15px; border: none; }"
-        );
-        msgBox.exec();
-        return;
+    const auto& venta = listaVentas[fila];
+    const QString sugerida = ServicioTickets::rutaSugerida(venta, FormatoTicket::Pdf);
+    QString ruta = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Guardar ticket en PDF"), sugerida,
+        QStringLiteral("Documento PDF (*.pdf)"));
+    if (ruta.isEmpty()) return;
+    if (!ruta.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive)) {
+        ruta += QStringLiteral(".pdf");
     }
 
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("PDF creado");
-    msgBox.setText(QString("El ticket se guardó en:\n%1").arg(rutaPDF));
-    msgBox.setIcon(QMessageBox::Information);
-    msgBox.setStyleSheet(
-        "QMessageBox { background-color: #ffffff; }"
-        "QLabel { color: #111827; font-size: 13px; }"
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-        "border-radius: 6px; padding: 6px 15px; border: none; }"
-    );
-    msgBox.exec();
+    ServicioTickets tickets;
+    QString error;
+    if (tickets.guardar(venta, FormatoTicket::Pdf, ruta, &error)) {
+        Estilos::mostrarInfo(this, QStringLiteral("PDF creado"),
+                             QStringLiteral("El ticket se guardó en:\n%1").arg(ruta));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("Error al guardar"), error);
+    }
 }
 
 void VistaHistorial::exportarCSV() {
-    if (listaVentas.empty()) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Sin datos");
-        msgBox.setText("No hay ventas registradas para exportar.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
-        return;
-    }
-
-    QString rutaArchivo = QFileDialog::getSaveFileName(this, "Guardar Reporte CSV", "Reporte_Ventas.csv", "Archivos CSV (*.csv)");
-    if (rutaArchivo.isEmpty()) return;
-
-    QFile archivo(rutaArchivo);
-    if (!archivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Error de Archivo");
-        msgBox.setText("No se pudo crear el archivo de reporte.");
-        msgBox.setIcon(QMessageBox::Critical);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #b91c1c; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
-        return;
-    }
-
-    QTextStream stream(&archivo);
-    stream << "ID Venta,Fecha y Hora,Usuario,Subtotal,IVA,Total\n";
-
-    for (int i = 0; i < tablaVentas->rowCount(); ++i) {
-        if (!tablaVentas->isRowHidden(i)) {
-            const auto& v = listaVentas[i];
-            stream << QString("\"%1\",\"%2\",\"%3\",%4,%5,%6\n")
-                .arg(v.idVenta)
-                .arg(v.fechaHora.toString("yyyy-MM-dd hh:mm AP"))
-                .arg(v.usuario)
-                .arg(v.subtotal, 0, 'f', 2)
-                .arg(v.iva, 0, 'f', 2)
-                .arg(v.total, 0, 'f', 2);
+    std::vector<DatosVentaTicket> visibles;
+    for (int fila = 0; fila < tablaVentas->rowCount(); ++fila) {
+        if (tablaVentas->isRowHidden(fila)) continue;
+        if (fila < static_cast<int>(listaVentas.size())) {
+            visibles.push_back(listaVentas[fila]);
         }
     }
 
-    archivo.close();
+    if (visibles.empty()) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Sin datos"),
+            QStringLiteral("No hay ventas visibles para exportar."));
+        return;
+    }
 
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("Reporte Creado");
-    msgBox.setText("El reporte CSV se ha exportado exitosamente.");
-    msgBox.setIcon(QMessageBox::Information);
-    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-    msgBox.exec();
+    QString ruta = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Guardar Reporte CSV"),
+        ServicioReportes::rutaSugeridaCSV(), QStringLiteral("Archivos CSV (*.csv)"));
+    if (ruta.isEmpty()) return;
+    if (!ruta.endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive)) {
+        ruta += QStringLiteral(".csv");
+    }
+
+    QString error;
+    if (ServicioReportes::exportarVentasCSV(visibles, ruta, &error)) {
+        Estilos::mostrarInfo(this, QStringLiteral("Reporte creado"),
+                             QStringLiteral("El reporte CSV se exportó correctamente en:\n%1")
+                                 .arg(ruta));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("Error de archivo"), error);
+    }
 }
 
 void VistaHistorial::anularVentaSeleccionada() {
-    int fila = tablaVentas->currentRow();
-    if (fila < 0) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle("Selección Requerida");
-        msgBox.setText("Seleccione una venta para anular.");
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgBox.exec();
+    if (!esAdministrador()) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Permiso denegado"),
+            QStringLiteral("Solo un administrador puede anular ventas."));
         return;
     }
 
-    QString idVenta = tablaVentas->item(fila, 0)->text();
+    const int fila = tablaVentas->currentRow();
+    if (fila < 0 || fila >= static_cast<int>(listaVentas.size())) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Selección requerida"),
+            QStringLiteral("Seleccione una venta para anular."));
+        return;
+    }
 
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("Confirmar Anulación");
-    msgBox.setText(QString("¿Desea anular la venta '%1'? El stock correspondiente será devuelto al inventario.").arg(idVenta));
-    msgBox.setIcon(QMessageBox::Question);
-    QPushButton* btnSi = msgBox.addButton("Sí, Anular", QMessageBox::YesRole);
-    msgBox.addButton("Cancelar", QMessageBox::NoRole);
-    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #b91c1c; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 12px; font-size: 12px; }");
-    msgBox.exec();
+    const auto& venta = listaVentas[fila];
+    if (venta.isAnulada()) {
+        Estilos::mostrarAdvertencia(
+            this, QStringLiteral("Venta ya anulada"),
+            QStringLiteral("La venta '%1' ya fue anulada.").arg(venta.getIdVenta()));
+        return;
+    }
 
-    if (msgBox.clickedButton() == btnSi) {
-        GestorJSON gestor;
-        auto prods = gestor.cargarProductos();
+    QMessageBox confirmacion(this);
+    confirmacion.setWindowTitle(QStringLiteral("Confirmar anulación"));
+    confirmacion.setText(
+        QStringLiteral("¿Desea anular la venta '%1'?\n\n"
+                       "El registro se conservará en el historial y el stock "
+                       "correspondiente será devuelto al inventario una única vez.")
+            .arg(venta.getIdVenta()));
+    confirmacion.setIcon(QMessageBox::Question);
+    QPushButton* btnSi = confirmacion.addButton(QStringLiteral("Sí, anular"),
+                                                QMessageBox::YesRole);
+    confirmacion.addButton(QStringLiteral("Cancelar"), QMessageBox::NoRole);
+    Estilos::estilizarMensaje(confirmacion, true);
+    confirmacion.exec();
+    if (confirmacion.clickedButton() != btnSi) return;
 
-        // 1. Reintegrar stock de los items de la venta
-        for (const auto& v : listaVentas) {
-            if (v.idVenta == idVenta) {
-                for (const auto& item : v.items) {
-                    for (auto& p : prods) {
-                        if (p.nombre == item.nombreProducto) {
-                            p.stock += item.cantidad;
-                            break;
-                        }
-                    }
-                }
-                break;
-            }
+    ServicioVentas servicio;
+    QString error;
+    if (servicio.anular(venta.getIdVenta(), usuarioActual, &error)) {
+        cargarDatos();
+        emit ventaAnulada(venta.getIdVenta());
+        if (!servicio.ultimaAdvertencia().isEmpty()) {
+            Estilos::mostrarAdvertencia(this, QStringLiteral("Auditoría incompleta"),
+                                        servicio.ultimaAdvertencia());
         }
-        gestor.guardarProductos(prods);
-
-        // 2. Eliminar la venta de la lista y actualizar JSON de ventas
-        for (auto it = listaVentas.begin(); it != listaVentas.end(); ++it) {
-            if (it->idVenta == idVenta) {
-                listaVentas.erase(it);
-                break;
-            }
-        }
-        gestor.guardarVentas(listaVentas);
-
-        renderizarTabla();
-
-        QMessageBox msgExito(this);
-        msgExito.setWindowTitle("Venta Anulada");
-        msgExito.setText("La venta se ha anulado y las unidades han sido devueltas al inventario.");
-        msgExito.setIcon(QMessageBox::Information);
-        msgExito.setStyleSheet("QMessageBox { background-color: #ffffff; } QLabel { color: #111827; font-size: 13px; } QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none; }");
-        msgExito.exec();
+        Estilos::mostrarInfo(
+            this, QStringLiteral("Venta anulada"),
+            QStringLiteral("La venta se anuló y las unidades fueron devueltas al inventario."));
+    } else {
+        Estilos::mostrarError(this, QStringLiteral("No se pudo anular la venta"), error);
     }
 }

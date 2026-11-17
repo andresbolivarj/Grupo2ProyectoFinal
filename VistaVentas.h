@@ -1,76 +1,84 @@
 #ifndef VISTAVENTAS_H
 #define VISTAVENTAS_H
 
-#include <QWidget>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QLabel>
-#include <QGridLayout>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QScrollArea>
-#include <QFrame>
-#include <QMessageBox>
-#include <QDoubleSpinBox>
 #include <QComboBox>
-#include <QTextBrowser>
 #include <QDialog>
-#include <memory>
+#include <QDoubleSpinBox>
+#include <QFrame>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QScrollArea>
+#include <QTextBrowser>
+#include <QVBoxLayout>
+#include <QWidget>
 #include <vector>
 #include "ModelosDatos.h"
-#include "IGeneradorTicket.h"
+
+class QButtonGroup;
 
 class VistaVentas : public QWidget {
     Q_OBJECT
 
 private:
-    QLineEdit* txtBuscar;
-    QVBoxLayout* layoutListaCarrito;
-    QWidget* contenedorCarrito;
-    QGridLayout* gridProductos;
+    QLineEdit* txtBuscar = nullptr;
+    QVBoxLayout* layoutListaCarrito = nullptr;
+    QWidget* contenedorCarrito = nullptr;
+    QGridLayout* gridProductos = nullptr;
+    QButtonGroup* grupoCategorias = nullptr;
 
-    // Desglose de Totales y Descuento
-    QLabel* lblSubtotal;
-    QLabel* lblIVA;
-    QComboBox* comboTipoDescuento;
-    QDoubleSpinBox* spinDescuento;
-    QLabel* lblTotal;
-    QLabel* lblResumenItems;
+    QLabel* lblSubtotal = nullptr;
+    QLabel* lblDescuento = nullptr;
+    QLabel* lblIVA = nullptr;
+    QComboBox* comboTipoDescuento = nullptr;
+    QDoubleSpinBox* spinDescuento = nullptr;
+    QLabel* lblTotal = nullptr;
+    QLabel* lblResumenItems = nullptr;
 
-    // Pago en Efectivo
-    QDoubleSpinBox* spinMontoPaga;
-    QLabel* lblCambio;
-    QPushButton* btnCheckout;
-    QPushButton* btnVaciarCarrito;
+    QDoubleSpinBox* spinMontoPaga = nullptr;
+    QLabel* lblCambio = nullptr;
+    QPushButton* btnCheckout = nullptr;
+    QPushButton* btnVaciarCarrito = nullptr;
 
-    // Estado Interno
     std::vector<ProductoItem> catalogo;
     std::vector<ItemCarrito> carrito;
     QString categoriaSeleccionada;
     QString nombreUsuario;
 
-    double subtotalActual;
-    double ivaActual;
-    double descuentoActual;
-    double totalActual;
+    double subtotalActual = 0.0;
+    double ivaActual = 0.0;
+    double descuentoActual = 0.0;
+    double totalActual = 0.0;
 
 public:
     explicit VistaVentas(const QString& nombreUsuario, QWidget* parent = nullptr);
 
+public slots:
+    // Recarga el catálogo desde el JSON y resincroniza el carrito.
+    void actualizar();
+
+signals:
+    void ventaRegistrada(const QString& idVenta);
+    void catalogoActualizado();
+
 private slots:
-    void cambiarCategoriaSlot(const QString& cat);
+    void cambiarCategoriaSlot(const QString& categoria);
 
 private:
-    void cargarCatalogoDemo();
+    void cargarCatalogo();
+    void sincronizarCarrito();
     void configurarInterfaz();
 
     void renderizarProductos();
     void renderizarCarrito();
 
-    QWidget* crearTarjetaProducto(const ProductoItem& prod);
+    QWidget* crearTarjetaProducto(const ProductoItem& producto);
     QWidget* crearWidgetCarritoItem(const ItemCarrito& item, int index);
 
-    void agregarAlCarrito(const ProductoItem& prod);
+    void agregarAlCarrito(const ProductoItem& producto);
     void cambiarCantidadItem(int index, int delta);
     void eliminarDelCarrito(int index);
     void vaciarCarrito();
