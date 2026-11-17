@@ -174,7 +174,15 @@ inline QString estiloEntrada() {
         "  background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 8px;"
         "  padding: 8px 12px; font-size: 13px; color: #111827; min-height: 20px; }"
         "QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus {"
-        "  border: 1px solid #047857; }");
+        "  border: 1px solid #047857; }"
+        // Reserva espacio a la derecha para que los botones de las flechas no se recorten.
+        "QSpinBox, QDoubleSpinBox, QComboBox, QDateEdit { padding-right: 26px; }"
+        "QSpinBox::up-button, QDoubleSpinBox::up-button {"
+        "  subcontrol-origin: border; subcontrol-position: top right; width: 22px; }"
+        "QSpinBox::down-button, QDoubleSpinBox::down-button {"
+        "  subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; }"
+        "QComboBox::drop-down, QDateEdit::drop-down {"
+        "  subcontrol-origin: border; subcontrol-position: top right; width: 22px; }");
 }
 
 inline QString estiloTabla() {

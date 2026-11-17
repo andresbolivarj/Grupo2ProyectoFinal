@@ -252,6 +252,7 @@ void VistaUsuarios::abrirFormularioUsuario(std::shared_ptr<Usuario> usuarioExist
         && usuarioActual
         && usuarioExistente->getNombreUsuario() == usuarioActual->getNombreUsuario()) {
         checkActivo->setEnabled(false); // No se puede desactivar a sí mismo.
+        comboRol->setEnabled(false);    // No se puede cambiar su propio rol.
     }
 
     const QString estiloCampos = Estilos::estiloEntrada();

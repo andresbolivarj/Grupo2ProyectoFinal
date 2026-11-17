@@ -164,10 +164,16 @@ void VistaInventario::configurarInterfaz() {
             QStringLiteral("Producto"), QStringLiteral("Detalle del Cambio"),
             QStringLiteral("Realizado por")
         });
-        tablaAuditoria->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        QHeaderView* headerAuditoria = tablaAuditoria->horizontalHeader();
+        headerAuditoria->setSectionResizeMode(0, QHeaderView::ResizeToContents); // Fecha y Hora
+        headerAuditoria->setSectionResizeMode(1, QHeaderView::ResizeToContents); // Acción
+        headerAuditoria->setSectionResizeMode(2, QHeaderView::ResizeToContents); // Producto
+        headerAuditoria->setSectionResizeMode(3, QHeaderView::Stretch);          // Detalle
+        headerAuditoria->setSectionResizeMode(4, QHeaderView::ResizeToContents); // Realizado por
         tablaAuditoria->verticalHeader()->setVisible(false);
         tablaAuditoria->setEditTriggers(QAbstractItemView::NoEditTriggers);
         tablaAuditoria->setSelectionBehavior(QAbstractItemView::SelectRows);
+        tablaAuditoria->setWordWrap(true);
         tablaAuditoria->setAlternatingRowColors(true);
         tablaAuditoria->setStyleSheet(Estilos::estiloTabla());
 
@@ -518,8 +524,9 @@ void VistaInventario::cargarAuditoria() {
             registro.detalleCambio, registro.usuarioResponsable
         };
         for (int columna = 0; columna < valores.size(); ++columna) {
-            tablaAuditoria->setItem(fila, columna,
-                                    new QTableWidgetItem(valores.at(columna)));
+            auto* item = new QTableWidgetItem(valores.at(columna));
+            item->setToolTip(valores.at(columna));
+            tablaAuditoria->setItem(fila, columna, item);
         }
 
         QString color = QStringLiteral("#1d4ed8");
@@ -532,6 +539,7 @@ void VistaInventario::cargarAuditoria() {
         }
         tablaAuditoria->item(fila, 1)->setForeground(QBrush(QColor(color)));
     }
+    tablaAuditoria->resizeRowsToContents();
     filtrarAuditoria();
 }
 
