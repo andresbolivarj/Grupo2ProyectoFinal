@@ -1,66 +1,91 @@
-<div align="center">
+# UNA Pulpe — Sistema de Punto de Venta (POS)
 
-# 🛒 UNA Pulpe — Sistema de Punto de Venta
+Sistema de escritorio para ventas, control de inventario y auditoría desarrollado en **C++17** y **Qt 6**.
 
-**Sistema integral de ventas, inventario y auditoría desarrollado en C++17 y Qt 6**
+## Equipo de desarrollo
 
-![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)
-![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?style=for-the-badge&logo=qt&logoColor=white)
-![CMake](https://img.shields.io/badge/CMake-3.16%2B-064F8C?style=for-the-badge&logo=cmake&logoColor=white)
-![Platform](https://img.shields.io/badge/Plataforma-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=for-the-badge)
+- **andresbolivarj** — https://github.com/andresbolivarj
+- **alisongonzalezv** — https://github.com/alisongonzalezv
+- **mmora5852-crypto** — https://github.com/mmora5852-crypto
+- **adrielvillalobostoruno-coder** — https://github.com/adrielvillalobostoruno-coder
 
-*Arquitectura desacoplada por capas · Persistencia JSON atómica · Seguridad PBKDF2-SHA256*
+## Requisitos del sistema
 
-[Requisitos](#-requisitos-del-sistema) •
-[Compilación](#-compilación-y-ejecución) •
-[Roles y Permisos](#-roles-y-control-de-acceso) •
-[Guía de Uso](#-guía-de-uso) •
-[Arquitectura](#-arquitectura-y-seguridad) •
-[Datos](#-rutas-de-datos-y-recuperación)
+- **CMake:** versión 3.16 o superior.
+- **Compilador:** soporte para C++17 (Clang, GCC o MSVC).
+- **Qt 6:** módulos `Widgets`, `PrintSupport` y `Network`.
+- No requiere librerías externas adicionales.
 
-</div>
+## Compilación y ejecución
 
----
+1. **Compilar desde la carpeta raíz del proyecto:**
+   - `cmake -S . -B cmake-build-debug`
+   - `cmake --build cmake-build-debug -j4`
+2. **Ejecutar el programa:**
+   - **macOS / Linux:** `./cmake-build-debug/LaPulpe`
+   - **Windows:** `cmake-build-debug\LaPulpe.exe`
 
-## 📋 Requisitos del sistema
+## Inicio de sesión y credenciales
 
-El proyecto está construido únicamente sobre módulos estándar de Qt 6, por lo que **no requiere librerías externas de terceros**:
+En un entorno limpio (sin archivo `usuarios.json`), el sistema crea automáticamente estas dos cuentas:
 
-- **Compilador:** Soporte completo para **C++17** (`Clang`, `GCC` o `MSVC`).
-- **Build System:** **CMake 3.16** o superior.
-- **Framework:** **Qt 6** con los módulos:
-  - `Qt6::Widgets` *(Interfaz gráfica nativa)*
-  - `Qt6::PrintSupport` *(Generación y exportación de tickets PDF)*
-  - `Qt6::Network` *(Utilidades de soporte)*
+- **Administrador:** usuario `admin` / contraseña `admin123`
+- **Cajero:** usuario `cajero1` / contraseña `cajero123`
 
----
+Si el archivo `usuarios.json` ya existe, se utilizan las credenciales guardadas. Puedes presionar el botón **Ver** para mostrar u ocultar la contraseña o pulsar `Enter` para entrar.
 
-## 🚀 Compilación y ejecución
+## Permisos por rol
 
-### 1. Compilar desde la raíz del proyecto
+- **Administrador:**
+  - Registrar ventas y generar comprobantes (TXT y PDF).
+  - Consultar el historial de ventas y exportar reportes CSV.
+  - Crear, editar, desactivar y reactivar productos.
+  - Anular ventas y ejecutar el reintegro de stock.
+  - Administrar cuentas de usuario y contraseñas.
+  - Ver la bitácora de auditoría del inventario.
+- **Cajero:**
+  - Registrar ventas y generar comprobantes.
+  - Consultar el historial de ventas.
+  - *Restringido:* No puede alterar precios, modificar productos, anular ventas, gestionar usuarios ni ver la auditoría.
 
-```bash
-cmake -S . -B cmake-build-debug
-cmake --build cmake-build-debug -j4
-2. Ejecutar la aplicaciónSistema OperativoComando de ejecuciónmacOS / Linux./cmake-build-debug/LaPulpeWindowscmake-build-debug\LaPulpe.exe🔐 Inicio de sesiónEn un entorno limpio (cuando aún no existe el archivo usuarios.json), el sistema inicializa automáticamente dos cuentas base para operar de inmediato:UsuarioContraseñaRol asignadoadminadmin123🛡️ Administradorcajero1cajero123🧾 Cajero[!TIP]Puedes hacer clic en el botón Ver para inspeccionar la contraseña escrita o presionar Enter directamente para ingresar. Si usuarios.json ya existe, el sistema respetará las credenciales guardadas.🛡️ Roles y control de accesoLa separación de privilegios garantiza que el personal operativo de caja no pueda alterar precios, modificar existencias ni anular transacciones registradas.Capacidad del sistema🛡️ Administrador🧾 CajeroProcesar ventas y emitir tickets✅✅Consultar historial de ventas y exportar CSV/PDF✅✅Crear, editar, desactivar y reactivar productos✅❌Anular ventas y ejecutar reintegros de stock✅❌Crear, editar y gestionar cuentas de usuario✅❌Auditar el historial de cambios en inventario✅❌🧭 Guía de uso1. Módulo de VentasBúsqueda rápida: Filtra el catálogo por nombre, código o categoría.Armado de orden: Agrega productos con + y ajusta cantidades con + / -.Descuentos y cobro: Aplica descuentos opcionales (monto fijo o porcentaje) e ingresa el efectivo recibido.Cálculo automático: El sistema desglosa al instante subtotal, descuento, IVA incluido, total y vuelto.Confirmación: Al presionar Procesar Venta, se valida el stock activo, se persiste la venta, se rebaja el inventario de forma atómica, se muestra el comprobante en pantalla y se respalda en Documentos/UNA Pulpe/Tickets/ (TXT y opción PDF).2. Módulo de Inventario (Solo Administrador)Gestión completa: Alta, edición, desactivación y reactivación de productos.Borrado lógico: Los artículos desactivados conservan su registro histórico para mantener intactas las facturas emitidas anteriormente.Auditoría de cambios: Bitácora detallada de creaciones, ediciones, cambios de estado y reintegros por anulación.3. Historial de VentasFiltros y búsqueda: Localiza operaciones por ID, cajero o rango de fechas.Exportación: Descarga comprobantes individuales en PDF o exporta reportes completos en CSV (con codificación UTF-8 + BOM para abrir directamente en Excel sin caracteres corruptos).Anulación controlada (Solo Administrador): Marca la factura como Anulada, la excluye del cierre financiero, devuelve el stock una única vez y deja trazabilidad REINTEGRO en auditoría.4. Gestión de Usuarios (Solo Administrador)Administración segura: Creación y edición de cuentas (contraseña mínima de 6 caracteres). Al editar, deja la clave en blanco si deseas mantener la actual.Protección contra bloqueo: El sistema impide que el administrador desactive su propia sesión o deje la aplicación sin administradores activos.🏗️ Arquitectura y seguridadPlaintext┌─────────────────────────────────────────────────────────────────┐
-│                   CAPA DE PRESENTACIÓN (Qt 6)                   │
-│   VentanaLogin · VentanaPrincipal · Ventas · Inventario · UI    │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ Señales y Slots (Sincronización)
-┌───────────────────────────────▼─────────────────────────────────┐
-│                  CAPA DE SERVICIOS Y DOMINIO                    │
-│   Autenticación · Ventas · Inventario · Tickets · Reportes      │
-│   CalculadoraVenta · Modelos Encapsulados · IGeneradorTicket    │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ Transacciones Atómicas
-┌───────────────────────────────▼─────────────────────────────────┐
-│               CAPA DE PERSISTENCIA (GestorJSON)                 │
-│     QLockFile (Concurrencia) + QSaveFile (Escritura Segura)     │
-└─────────────────────────────────────────────────────────────────┘
-Garantías técnicas implementadasTransacciones atómicas ("todo o nada"): Las ventas registran primero la factura y luego descuentan el inventario; si ocurre un error en disco, la operación se revierte automáticamente.Cifrado PBKDF2-SHA256: Las claves se guardan exclusivamente como hashes con sal (pbkdf2$iteraciones$salt$hash). Si detecta claves heredadas en texto plano o SHA-256, las migra automáticamente tras un inicio de sesión exitoso.Concurrencia y codificación: Uso de QLockFile, QSaveFile y estándar UTF-8 transversal en toda la aplicación.💾 Rutas de datos y recuperaciónLos archivos de persistencia se almacenan de forma automática en el directorio de datos del sistema:macOS: ~/Library/Application Support/UNA/LaPulpe/Windows: %APPDATA%\UNA\LaPulpe\ArchivoPropósitoproductos.jsonCatálogo maestro y existencias actuales.ventas.jsonHistorial de facturas y estado de anulaciones.usuarios.jsonCredenciales cifradas y roles del personal.auditoria_productos.jsonBitácora cronológica de movimientos de inventario.*.lockBloqueos temporales para evitar corrupción por escrituras simultáneas.[!IMPORTANT]Evita modificar manualmente los archivos .json mientras el programa esté abierto.Dado que los hashes PBKDF2 son unidireccionales, no es posible descifrar la clave anterior:Inicia sesión con otra cuenta de Administrador y restablécela desde el módulo Usuarios.Si no tienes otra cuenta administrativa, cierra el programa, respalda tu archivo usuarios.json y renómbralo para regenerar los usuarios por defecto:Bashcd "$HOME/Library/Application Support/UNA/LaPulpe"
-cp usuarios.json usuarios.json.bak
-mv usuarios.json usuarios.json.old
-Si usuarios.json existe pero está vacío, el sistema no crea usuarios automáticamente por seguridad. Para forzar la carga de usuarios de prueba al iniciar:BashLAPULPE_DEMO_MODE=1 ./cmake-build-debug/LaPulpe
-# O alternativamente:
-LAPULPE_SEED_USERS=1 ./cmake-build-debug/LaPulpe
-🛠️ Solución de problemas frecuentesProblemaCausa probable y soluciónEl proyecto no compilaVerifica que Qt 6 esté configurado en CMake y cuente con Widgets, PrintSupport y Network.No aparece el inventarioComprueba que la carpeta de datos tenga permisos de escritura o que productos.json no esté vacío/corrupto.No permite iniciar sesiónVerifica que el usuario esté activo y que no exista un archivo .lock residual tras un cierre forzoso.No se guarda el respaldo TXTRevisa permisos de escritura en Documentos/UNA Pulpe/Tickets/. La venta confirmada en el sistema permanece intacta.
+## Uso del sistema
+
+### 1. Ventas
+- Busca productos por nombre, código o categoría y agrégalos a la orden con el botón `+`.
+- Ajusta cantidades (`+` / `-`), aplica descuentos opcionales (por monto o porcentaje) e ingresa el efectivo recibido para calcular el vuelto automáticamente.
+- Al confirmar (**Procesar Venta**), el sistema valida stock activo, guarda la factura, descuenta el inventario de forma atómica y guarda una copia del recibo en `Documentos/UNA Pulpe/Tickets/`.
+
+### 2. Inventario (Solo Administrador)
+- Permite crear, editar, desactivar y reactivar productos.
+- **Borrado lógico:** Los productos desactivados permanecen como inactivos para no afectar el historial de ventas anteriores.
+- Incluye la pestaña **Historial de Cambios** con la auditoría de movimientos y reintegros.
+
+### 3. Historial de ventas
+- Permite buscar por ID o usuario, filtrar por fecha, ver comprobantes, descargar PDF y exportar a **CSV** (UTF-8 con BOM compatible con Excel).
+- **Anulación (Solo Administrador):** Marca la venta como *Anulada*, la excluye de los totales, devuelve el stock una única vez y registra un movimiento `REINTEGRO`.
+
+### 4. Usuarios (Solo Administrador)
+- Permite crear, editar, desactivar y reactivar usuarios (contraseña mínima de 6 caracteres).
+- Al editar un usuario, deja el campo de contraseña vacío si deseas conservar la clave actual.
+- Impide desactivar tu propia sesión o dejar el sistema sin administradores activos.
+
+## Arquitectura y persistencia
+
+- **Arquitectura en capas:** Separación limpia entre vistas Qt, capa de servicios (`Autenticación`, `Ventas`, `Inventario`, `Tickets`, `Reportes`), cálculo (`CalculadoraVenta`) y almacenamiento (`GestorJSON`).
+- **Seguridad y transacciones:** Guardado atómico con `QSaveFile`, bloqueos de concurrencia con `QLockFile`, soporte completo **UTF-8** y contraseñas cifradas con **PBKDF2-SHA256** (con migración automática desde hashes anteriores).
+- **Sincronización:** Las vistas se actualizan al instante mediante señales y *slots* de Qt tras cada venta, anulación o edición de producto.
+
+### Ubicación de archivos de datos
+- **macOS:** `~/Library/Application Support/UNA/LaPulpe/`
+- **Windows:** `%APPDATA%\UNA\LaPulpe\`
+- **Archivos:** `productos.json`, `ventas.json`, `usuarios.json`, `auditoria_productos.json` y bloqueos temporales `*.lock`. *(Evita editarlos manualmente con el programa abierto).*
+
+### Recuperación de contraseña y modo demo
+- **Si olvidaste la clave de administrador:** Restablécela desde otro usuario administrador o, con la aplicación cerrada, respalda y renombra `usuarios.json` para que se regeneren los usuarios por defecto.
+- **Modo demo:** Si `usuarios.json` existe vacío, puedes forzar la creación de usuarios de ejemplo ejecutando el programa con la variable de entorno `LAPULPE_DEMO_MODE=1` o `LAPULPE_SEED_USERS=1`.
+
+## Solución de problemas
+
+- **El proyecto no compila:** Verifica que Qt 6 esté configurado en CMake con los módulos `Widgets`, `PrintSupport` y `Network`.
+- **No aparece el inventario o falla el login:** Comprueba permisos de escritura en la carpeta de datos y revisa que no quede un archivo `.lock` residual tras un cierre inesperado.
+- **No se guarda el respaldo TXT:** Revisa permisos en `Documentos/UNA Pulpe/Tickets/`. La venta confirmada en el sistema se conserva intacta.
