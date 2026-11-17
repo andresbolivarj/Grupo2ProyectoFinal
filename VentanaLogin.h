@@ -14,7 +14,6 @@ private:
     QLineEdit* txtUsuario;
     QLineEdit* txtClave;
     QPushButton* btnIngresar;
-
     std::shared_ptr<Usuario> usuarioAutenticado;
 
 public:
@@ -25,4 +24,4 @@ private:
     void intentarLogin();
 };
 
-#endif // VENTANALOG
+#endif // VENTANALOGIN_H

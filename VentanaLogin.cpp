@@ -1,156 +1,161 @@
 #include "VentanaLogin.h"
-#include <QVBoxLayout>
+
+#include "Estilos.h"
+#include "ServicioAutenticacion.h"
+
+#include <QDebug>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPixmap>
-#include "GestorJSON.h"
+#include <QVBoxLayout>
 
 VentanaLogin::VentanaLogin(QWidget* parent) : QDialog(parent) {
-    setWindowTitle("UNA Pulpe - Iniciar Sesión");
-    setFixedSize(380, 460);
-    setStyleSheet("QDialog { background-color: #ffffff; }");
+    setWindowTitle(QStringLiteral("UNA Pulpe - Iniciar Sesión"));
+    setMinimumSize(380, 470);
+    resize(410, 510);
+    setStyleSheet(QStringLiteral("QDialog { background-color: #ffffff; }"));
 
     QVBoxLayout* layoutPrincipal = new QVBoxLayout(this);
-    layoutPrincipal->setContentsMargins(30, 25, 30, 25);
-    layoutPrincipal->setSpacing(14);
+    layoutPrincipal->setContentsMargins(32, 26, 32, 26);
+    layoutPrincipal->setSpacing(12);
 
-    // ==========================================
-    // CARGA Y DESPLIEGUE DE LA IMAGEN LOGO.JPEG
-    // ==========================================
     QLabel* lblLogoImagen = new QLabel(this);
     lblLogoImagen->setAlignment(Qt::AlignCenter);
+    lblLogoImagen->setMinimumHeight(140);
 
-    QPixmap pixmapLogo(":/logo.jpeg");
-
+    const QPixmap pixmapLogo(QStringLiteral(":/logo.jpeg"));
     if (!pixmapLogo.isNull()) {
-        lblLogoImagen->setPixmap(pixmapLogo.scaled(140, 140, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        lblLogoImagen->setPixmap(pixmapLogo.scaled(140, 140, Qt::KeepAspectRatio,
+                                                   Qt::SmoothTransformation));
+    } else {
+        lblLogoImagen->setText(QStringLiteral("UNA Pulpe"));
+        lblLogoImagen->setStyleSheet(
+            QStringLiteral("font-size: 26px; font-weight: bold; color: #047857;"));
     }
-    else {
-        lblLogoImagen->setText("UNA Pulpe");
-        lblLogoImagen->setStyleSheet("font-size: 26px; font-weight: bold; color: #047857;");
-    }
-
     layoutPrincipal->addWidget(lblLogoImagen);
-    layoutPrincipal->addSpacing(10);
 
-    // CAMPOS DE ENTRADA
+    QLabel* lblTitulo = new QLabel(QStringLiteral("Iniciar Sesión"), this);
+    lblTitulo->setAlignment(Qt::AlignCenter);
+    lblTitulo->setStyleSheet(
+        QStringLiteral("color: #111827; font-size: 18px; font-weight: bold;"));
+    layoutPrincipal->addWidget(lblTitulo);
+    layoutPrincipal->addSpacing(6);
+
+    QLabel* lblUser = new QLabel(QStringLiteral("Usuario:"), this);
+    lblUser->setStyleSheet(QStringLiteral("color: #374151; font-size: 12px; font-weight: bold;"));
+    layoutPrincipal->addWidget(lblUser);
+
     txtUsuario = new QLineEdit(this);
-    txtUsuario->setPlaceholderText("Nombre de usuario");
+    txtUsuario->setPlaceholderText(QStringLiteral("Nombre de usuario"));
+    txtUsuario->setMaxLength(64);
+    txtUsuario->setStyleSheet(Estilos::estiloEntrada());
+    layoutPrincipal->addWidget(txtUsuario);
+
+    QLabel* lblPass = new QLabel(QStringLiteral("Contraseña:"), this);
+    lblPass->setStyleSheet(QStringLiteral("color: #374151; font-size: 12px; font-weight: bold;"));
+    layoutPrincipal->addWidget(lblPass);
 
     QHBoxLayout* layoutPass = new QHBoxLayout();
-    layoutPass->setSpacing(5);
+    layoutPass->setSpacing(6);
 
     txtClave = new QLineEdit(this);
-    txtClave->setPlaceholderText("Contraseña");
+    txtClave->setPlaceholderText(QStringLiteral("Contraseña"));
     txtClave->setEchoMode(QLineEdit::Password);
+    txtClave->setMaxLength(128);
+    txtClave->setStyleSheet(Estilos::estiloEntrada());
 
-    QPushButton* btnVerPass = new QPushButton("Ver", this);
-    btnVerPass->setFixedWidth(65);
+    QPushButton* btnVerPass = new QPushButton(QStringLiteral("Ver"), this);
+    btnVerPass->setFixedWidth(68);
     btnVerPass->setCursor(Qt::PointingHandCursor);
     btnVerPass->setStyleSheet(
-        "QPushButton { background-color: #f3f4f6; color: #374151; font-weight: bold; "
-        "border: 1px solid #d1d5db; border-radius: 6px; padding: 6px; font-size: 11px; }"
-        "QPushButton:hover { background-color: #e5e7eb; }"
-    );
-
-    connect(btnVerPass, &QPushButton::clicked, [this, btnVerPass]() {
-        if (txtClave->echoMode() == QLineEdit::Password) {
-            txtClave->setEchoMode(QLineEdit::Normal);
-            btnVerPass->setText("Ocultar");
-        }
-        else {
-            txtClave->setEchoMode(QLineEdit::Password);
-            btnVerPass->setText("Ver");
-        }
-        });
+        QStringLiteral("QPushButton { background-color: #f3f4f6; color: #374151;"
+                       " font-weight: bold; border: 1px solid #d1d5db; border-radius: 8px;"
+                       " padding: 8px; font-size: 11px; }"
+                       "QPushButton:hover { background-color: #e5e7eb; }"));
+    connect(btnVerPass, &QPushButton::clicked, this, [this, btnVerPass]() {
+        const bool oculta = txtClave->echoMode() == QLineEdit::Password;
+        txtClave->setEchoMode(oculta ? QLineEdit::Normal : QLineEdit::Password);
+        btnVerPass->setText(oculta ? QStringLiteral("Ocultar") : QStringLiteral("Ver"));
+    });
 
     layoutPass->addWidget(txtClave, 1);
     layoutPass->addWidget(btnVerPass);
-
-    QString estiloEntradas =
-        "QLineEdit { background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; "
-        "padding: 10px; font-size: 13px; color: #111827; }"
-        "QLineEdit:focus { border: 1px solid #047857; }";
-
-    txtUsuario->setStyleSheet(estiloEntradas);
-    txtClave->setStyleSheet(estiloEntradas);
-
-    QLabel* lblUser = new QLabel("Usuario:", this);
-    lblUser->setStyleSheet("color: #374151; font-size: 12px; font-weight: bold;");
-
-    QLabel* lblPass = new QLabel("Contraseña:", this);
-    lblPass->setStyleSheet("color: #374151; font-size: 12px; font-weight: bold;");
-
-    layoutPrincipal->addWidget(lblUser);
-    layoutPrincipal->addWidget(txtUsuario);
-    layoutPrincipal->addWidget(lblPass);
     layoutPrincipal->addLayout(layoutPass);
+    layoutPrincipal->addSpacing(10);
 
-    layoutPrincipal->addSpacing(15);
-
-    // BOTÓN INICIAR SESIÓN
-    btnIngresar = new QPushButton("Iniciar Sesión", this);
+    btnIngresar = new QPushButton(QStringLiteral("Iniciar Sesión"), this);
     btnIngresar->setMinimumHeight(44);
+    btnIngresar->setDefault(true);
     btnIngresar->setStyleSheet(
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-        "border: none; border-radius: 8px; font-size: 14px; }"
-        "QPushButton:hover { background-color: #065f46; }"
-    );
+        QStringLiteral("QPushButton { background-color: #047857; color: #ffffff;"
+                       " font-weight: bold; border: none; border-radius: 8px; font-size: 14px; }"
+                       "QPushButton:hover { background-color: #065f46; }"
+                       "QPushButton:disabled { background-color: #9ca3af; }"));
     connect(btnIngresar, &QPushButton::clicked, this, &VentanaLogin::intentarLogin);
-
     layoutPrincipal->addWidget(btnIngresar);
+
+    layoutPrincipal->addStretch();
+
+    connect(txtUsuario, &QLineEdit::returnPressed, this, [this]() { txtClave->setFocus(); });
+    connect(txtClave, &QLineEdit::returnPressed, this, &VentanaLogin::intentarLogin);
+    setTabOrder(txtUsuario, txtClave);
+    setTabOrder(txtClave, btnVerPass);
+    setTabOrder(btnVerPass, btnIngresar);
+    txtUsuario->setFocus();
 }
 
 void VentanaLogin::intentarLogin() {
-    QString user = txtUsuario->text().trimmed();
-    QString pass = txtClave->text().trimmed();
+    const QString usuario = txtUsuario->text().trimmed();
+    const QString clave = txtClave->text();
 
-    QString estiloAlertas =
-        "QMessageBox { background-color: #ffffff; }"
-        "QLabel { color: #111827; font-size: 13px; font-weight: 500; }"
-        "QPushButton { background-color: #047857; color: #ffffff; font-weight: bold; "
-        "border-radius: 6px; padding: 6px 15px; border: none; font-size: 12px; }";
-
-    if (user.isEmpty() || pass.isEmpty()) {
-        QMessageBox msg(this);
-        msg.setWindowTitle("Error de Validación");
-        msg.setText("Por favor ingrese su usuario y contraseña.");
-        msg.setIcon(QMessageBox::Warning);
-        msg.setStyleSheet(estiloAlertas);
-        msg.exec();
+    if (usuario.isEmpty() || clave.isEmpty()) {
+        Estilos::mostrarAdvertencia(this, QStringLiteral("Datos incompletos"),
+                                    QStringLiteral("Por favor ingrese su usuario y contraseña."));
         return;
     }
 
-    GestorJSON gestor;
-    auto usuarios = gestor.cargarUsuarios();
+    btnIngresar->setEnabled(false);
+    ServicioAutenticacion servicio;
+    QString error;
+    const auto autenticado = servicio.autenticar(usuario, clave, &error);
+    btnIngresar->setEnabled(true);
 
-    // Si no existen usuarios en usuarios.json, inicializa los por defecto
-    if (usuarios.empty()) {
-        usuarios.push_back(std::make_shared<Administrador>("admin", "admin123"));
-        usuarios.push_back(std::make_shared<Cajero>("cajero1", "cajero123"));
-        gestor.guardarUsuarios(usuarios);
+    if (autenticado) {
+        usuarioAutenticado = autenticado;
+        accept();
+        return;
     }
 
-    for (const auto& u : usuarios) {
-        if (u->getNombreUsuario() == user && u->getClave() == pass) {
-            usuarioAutenticado = u;
-            accept();
-            return;
-        }
-    }
+    const bool credencialesInvalidas = error.contains(QStringLiteral("incorrectos"));
+    const bool datosCorruptos = error.contains(QStringLiteral("JSON"))
+                                || error.contains(QStringLiteral("válido"))
+                                || error.contains(QStringLiteral("registro"))
+                                || error.contains(QStringLiteral("corrupto"));
 
-    QMessageBox msg(this);
-    msg.setWindowTitle("Acceso Denegado");
-    msg.setText("Usuario o contraseña incorrectos. Verifique sus credenciales.");
-    msg.setIcon(QMessageBox::Critical);
-    msg.setStyleSheet(
-        "QMessageBox { background-color: #ffffff; }"
-        "QLabel { color: #111827; font-size: 13px; font-weight: 500; }"
-        "QPushButton { background-color: #b91c1c; color: #ffffff; font-weight: bold; "
-        "border-radius: 6px; padding: 6px 15px; border: none; font-size: 12px; }"
-    );
-    msg.exec();
+    if (credencialesInvalidas) {
+        // No se registran credenciales incorrectas para no llenar el log de ruido.
+        Estilos::mostrarAdvertencia(this, QStringLiteral("Acceso denegado"),
+                                    QStringLiteral("Usuario o contraseña incorrectos.\n"
+                                                   "Verifique sus credenciales e intente de nuevo."));
+    } else if (datosCorruptos) {
+        qWarning().noquote() << QStringLiteral("LaPulpe: datos corruptos en el login: %1")
+                                    .arg(error);
+        Estilos::mostrarError(
+            this, QStringLiteral("Datos del sistema dañados"),
+            QStringLiteral("El archivo de usuarios contiene información inválida:\n\n%1\n\n"
+                           "No se modificó ningún archivo. Contacte al administrador.")
+                .arg(error));
+    } else {
+        qWarning().noquote() << QStringLiteral("LaPulpe: fallo técnico en el login: %1")
+                                    .arg(error);
+        Estilos::mostrarError(
+            this, QStringLiteral("No se pudo iniciar sesión"),
+            error.isEmpty() ? QStringLiteral("No fue posible validar las credenciales.")
+                            : error);
+    }
+    txtClave->selectAll();
+    txtClave->setFocus();
 }
 
 std::shared_ptr<Usuario> VentanaLogin::getUsuarioAutenticado() const {
